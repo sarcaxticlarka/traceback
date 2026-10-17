@@ -68,3 +68,9 @@ pre.code { background: var(--bg-elev); border: 1px solid var(--line); border-rad
 .page-narrow section.card { scroll-margin-top: 80px; }
 .suggest-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); padding: 4px 10px; border-radius: 999px; font-size: 12px; }
 .alert-list { display: flex; flex-direction: column; gap: 6px; }
+/* primary action stays reachable: sticky rail with the run button at the top */
+.split > .rail { position: sticky; top: 70px; max-height: calc(100vh - 90px); overflow: auto; }
+.rail-run { width: 100%; margin: 0 0 12px; }
+@media (max-width: 1000px) { .split > .rail { position: static; max-height: none; } }
+.working .s.now { animation: pulse-text 1.4s ease-in-out infinite; }
+@keyframes pulse-text { 50% { opacity: .45; } }

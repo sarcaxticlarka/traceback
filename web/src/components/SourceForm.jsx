@@ -107,9 +107,11 @@ export default function SourceForm({ initialUrl = '', onCreated }) {
 
       {mode === 'bundle' && (
         <div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Describe services, dependencies, teams, deploys and alerts exported from your catalogue (Backstage, deploy tool, PagerDuty). Same agents, same verifier. Edit the sample:</p>
+          <div className="row between" style={{ marginBottom: 10 }}>
+            <p className="muted" style={{ fontSize: 13, margin: 0, flex: 1, minWidth: 240 }}>Describe services, dependencies, teams, deploys and alerts exported from your catalogue (Backstage, deploy tool, PagerDuty). Same agents, same verifier. Edit the sample:</p>
+            <button className="btn" disabled={busy} onClick={bundleGo}>{busy ? <Spinner /> : <Icon name="database" size={15} />} Build graph</button>
+          </div>
           <textarea rows={13} value={bundle} onChange={(e) => setBundle(e.target.value)} spellCheck={false} />
-          <div className="row" style={{ marginTop: 10 }}><button className="btn" disabled={busy} onClick={bundleGo}><Icon name="database" size={15} /> Build graph</button></div>
         </div>
       )}
       {msg && <div className="row" style={{ marginTop: 10 }}><Spinner /> <span className="muted">{msg}</span></div>}

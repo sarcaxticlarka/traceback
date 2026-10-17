@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import { useApp } from '../lib/ctx'
 import { sampleQuestions } from '../lib/samples'
@@ -149,6 +149,8 @@ function ImpactTab({ ws, onEvidence }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState(false)
+  const outRef = useRef(null)
+  useEffect(() => { if (res) outRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [res])
   useEffect(() => { api.wsCommits(ws.id).then((c) => { setCommits(c); setSha(c[0]?.sha || '') }).catch(() => {}) }, [ws.id])
   const analyze = async (body) => { setBusy(true); setErr(''); try { setRes(await api.impact(ws.tenant, body)) } catch (e) { setErr(String(e)) } setBusy(false) }
   const row = res?.rows?.[0]
@@ -168,6 +170,7 @@ function ImpactTab({ ws, onEvidence }) {
         </div>
         {err && <div className="banner" style={{ marginTop: 10 }}>{err}</div>}
       </div>
+      <div ref={outRef} style={{ scrollMarginTop: 72 }} />
       {row && (
         <div className="grid2">
           <div className="card">
