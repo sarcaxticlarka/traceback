@@ -61,6 +61,11 @@ class ApproveRequest(BaseModel):
     approver_id: str | None = None
 
 
+class VerifyRequest(BaseModel):
+    tenant: str
+    claims: list[dict]
+
+
 class LearnRequest(BaseModel):
     tenant: str
     n: int = 240
@@ -153,6 +158,16 @@ def ask(req: AskRequest):
     a["graph_enabled"] = True
     a["baseline_docs_only"] = baseline
     return a
+
+
+@app.post("/api/verify")
+def verify(req: VerifyRequest):
+    """Verify arbitrary claims against the tenant graph (used by the console's 'inject a hallucination' demo)."""
+    from ..tools import Claim
+    from ..verifier import verify_claims
+    ctx = _ctx(req.tenant)
+    claims = [Claim.from_dict(c) for c in req.claims[:50]]
+    return verify_claims(ctx, claims).to_dict()
 
 
 # --------------------------------------------------------------------------------------- memory / coordination

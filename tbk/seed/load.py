@@ -63,6 +63,17 @@ def load_dataset(store: GraphStore, ds: Dataset, reset: bool = True) -> dict[str
     return counts
 
 
+def ensure_seeded(store: GraphStore | None = None) -> list[str]:
+    """Load any configured tenant whose graph does not exist yet (used by the container entrypoint)."""
+    store = store or get_store()
+    loaded = []
+    for tenant in get_settings().tenants:
+        if not store.exists(tenant):
+            load_dataset(store, get_dataset(tenant), reset=False)
+            loaded.append(tenant)
+    return loaded
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tenants", default=",".join(get_settings().tenants))

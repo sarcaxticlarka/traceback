@@ -1,0 +1,15 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports: ["6390:6379", "3010:3000"]      # 6390: redis protocol, 3010: FalkorDB Browser
+    volumes: ["falkordb_data:/var/lib/falkordb/data"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 10 }
+  api:
+    build: .
+    depends_on: { falkordb: { condition: service_healthy } }
+    environment:
+      FALKORDB_HOST: falkordb
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8765:8765"]
+volumes:
+  falkordb_data:
