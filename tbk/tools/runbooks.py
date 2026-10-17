@@ -26,10 +26,11 @@ def rank_runbooks(ctx: ToolContext, signal: str, service: str = "") -> ToolResul
     for r in ranked:
         rate = success_rate(r["attempts"], r["successes"])
         claims.append(Claim(f"{r['title']} is a runbook for signal {signal}", edge_ids=[r["fs"]], node_ids=[r["id"]]))
-        claims.append(Claim(f"{r['title']} has succeeded {r['successes']} of {r['attempts']} attempts",
+        # counters only ever grow, so the claim is monotone ("at least") and stays true under concurrent writers
+        claims.append(Claim(f"{r['title']} has at least {r['attempts']} recorded attempts and {r['successes']} successes",
                             node_ids=[r["id"]],
-                            assert_props=[{"node_id": r["id"], "prop": "attempts", "value": r["attempts"]},
-                                          {"node_id": r["id"], "prop": "successes", "value": r["successes"]}]))
+                            assert_props=[{"node_id": r["id"], "prop": "attempts", "value": r["attempts"], "op": "ge"},
+                                          {"node_id": r["id"], "prop": "successes", "value": r["successes"], "op": "ge"}]))
         out.append({"runbook": r["id"], "title": r["title"], "attempts": r["attempts"], "successes": r["successes"],
                     "success_rate": round(rate, 3), "local_wins": r["local_wins"]})
     best = out[0]["title"] if out else None

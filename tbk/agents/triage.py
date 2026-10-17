@@ -28,7 +28,7 @@ class _TriagePlanner:
         return None
 
 
-def run_triage(ctx: ToolContext, alert_id: str) -> tuple[AgentReport, dict]:
+def run_triage(ctx: ToolContext, alert_id: str, run_id: str = "") -> tuple[AgentReport, dict]:
     """Returns (report, ticket) where ticket holds incident id, task ids, service, signal, priority."""
     t0 = time.perf_counter()
     memory.ensure_agents(ctx)
@@ -42,7 +42,7 @@ def run_triage(ctx: ToolContext, alert_id: str) -> tuple[AgentReport, dict]:
     blast = results[1].rows if len(results) > 1 else []
     tier0 = sum(1 for r in blast if r["tier"] == 0)
     priority = round(min(1.0, (4 - alert["tier"]) * 0.2 + min(len(blast), 20) * 0.02 + 0.05 * tier0 + 0.1 * (alert["severity"] == 1)), 3)
-    incident = memory.open_incident(ctx, alert_id, alert["sid"], alert["severity"], alert["signal"])
+    incident = memory.open_incident(ctx, alert_id, alert["sid"], alert["severity"], alert["signal"], run_id)
     t_inv = tasks.create_task(ctx, "investigate", incident, priority)
     t_rem = tasks.create_task(ctx, "remediate", incident, priority, blocked_by=[t_inv])
     claims = [c for r in results for c in r.claims][:6]

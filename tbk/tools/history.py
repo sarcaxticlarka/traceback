@@ -78,14 +78,14 @@ def facts_as_of(ctx: ToolContext, service: str, as_of: int | None = None) -> Too
     rows = ctx.q(
         "MATCH (f:Fact)-[ab:ABOUT_SERVICE]->(s:Service {id:$sid}) WHERE f.vf <= $at AND f.vt > $at "
         "MATCH (f)-[ap:ABOUT_PERSON]->(p:Person) OPTIONAL MATCH (f)-[sb:SUPPORTED_BY]->(src:Source) "
-        "RETURN f.id AS fid, f.text AS text, f.vf AS vf, ID(ab) AS ab, ID(ap) AS ap, ID(sb) AS sb, src.uri AS uri",
+        "RETURN f.id AS fid, f.text AS text, f.vf AS vf, ID(ab) AS ab, ID(ap) AS ap, ID(sb) AS sb, src.uri AS uri, p.name AS person",
         {"sid": sid(service), "at": at})
     claims, out = [], []
     for r in rows:
         eids = [r["ab"], r["ap"]] + ([r["sb"]] if r["sb"] is not None else [])
         claims.append(Claim(f"{r['text']} (valid as of {fmt_day(at)})", edge_ids=eids, node_ids=[r["fid"]], as_of=at,
                             assert_props=[{"node_id": r["fid"], "prop": "text", "value": r["text"]}]))
-        out.append({"fact": r["text"], "since": fmt_day(r["vf"]), "source": r["uri"]})
+        out.append({"fact": r["text"], "person": r["person"], "since": fmt_day(r["vf"]), "source": r["uri"]})
     return ToolResult("facts_as_of", {}, out, claims, summary=f"{len(out)} fact(s) valid on {fmt_day(at)}")
 
 

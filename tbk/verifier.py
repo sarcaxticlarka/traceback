@@ -4,7 +4,7 @@ A claim is accepted only if, re-checked against the tenant's FalkorDB graph:
   1. it cites evidence (edge ids and/or node ids) and is not tagged ``inference``;
   2. every cited edge exists in this tenant's graph;
   3. every cited edge was valid at the claim's time (``vf <= t < vt``), or - for ``ended_edge_ids`` - had ended;
-  4. every cited node exists, and asserted node properties match the stored values;
+  4. every cited node exists, and asserted node properties match the stored values (``op:"ge"`` for monotone counters);
   5. every entity the text mentions (service, person, team, deploy sha, id) is an endpoint of the cited evidence.
 Rule 5 is what stops a language model from smuggling an ungrounded name into an otherwise grounded sentence.
 Grounded % = accepted / proposed (rejected and inference claims count against it).
@@ -149,8 +149,12 @@ def _verify_one(ctx: ToolContext, c: Claim, facts: dict, nodes: dict) -> Verifie
         n = nodes.get(a["node_id"])
         if n is None:
             return reject(f"node {a['node_id']} not found in tenant graph")
-        if not _close(n["props"].get(a["prop"]), a["value"]):
-            return reject(f"property {a['prop']} of {a['node_id']} is {n['props'].get(a['prop'])!r}, claim says {a['value']!r}")
+        cur = n["props"].get(a["prop"])
+        if a.get("op") == "ge":
+            if not (isinstance(cur, (int, float)) and cur >= a["value"]):
+                return reject(f"property {a['prop']} of {a['node_id']} is {cur!r}, below the claimed minimum {a['value']!r}")
+        elif not _close(cur, a["value"]):
+            return reject(f"property {a['prop']} of {a['node_id']} is {cur!r}, claim says {a['value']!r}")
     mentions = find_mentions(ctx, c.text)
     extra = [m for m in mentions if m not in allowed]
     if extra:

@@ -86,3 +86,21 @@ def ownership_gaps(ctx: ToolContext) -> ToolResult:
             claims.append(Claim(f"{name} left team {r['team']} on {fmt_day(ts)}", ended_edge_ids=[eid]))
         out.append({"service": r["svc"], "team": r["team"], "left": r["left_names"]})
     return ToolResult("ownership_gaps", {}, out, claims, summary=f"{len(out)} orphaned service(s)")
+
+
+@tool("incident_resolvers", "People who resolved incidents that affected a service (all time), with incident counts.",
+      {"service": {"type": "string"}}, ["service"], cypher_ref="Q3c incident_resolvers")
+def incident_resolvers(ctx: ToolContext, service: str) -> ToolResult:
+    rows = ctx.q("MATCH (i:Incident)-[af:AFFECTED]->(s:Service {id:$sid}), (i)-[rb:RESOLVED_BY]->(p:Person) "
+                 "WHERE i.ts_open <= $at RETURN p.name AS person, i.id AS iid, ID(af) AS af, ID(rb) AS rb, s.name AS svc "
+                 "ORDER BY i.ts_open DESC", {"sid": sid(service), "at": ctx.at})
+    by: dict[str, list[dict]] = {}
+    for r in rows:
+        by.setdefault(r["person"], []).append(r)
+    claims, out = [], []
+    for person, items in sorted(by.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        i = items[0]
+        claims.append(Claim(f"{person} resolved incident {i['iid']} affecting {i['svc']} (latest of {len(items)})",
+                            edge_ids=[i["af"], i["rb"]], node_ids=[i["iid"]]))
+        out.append({"person": person, "incidents": len(items)})
+    return ToolResult("incident_resolvers", {}, out, claims, summary=f"{len(out)} resolver(s)")

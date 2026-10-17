@@ -109,3 +109,33 @@ def single_points_of_failure(ctx: ToolContext, top: int = 5) -> ToolResult:
     claims = [Claim(f"{r['name']} is a chokepoint, betweenness {r['score']:.2f}", node_ids=[r["id"]],
                     assert_props=[{"node_id": r["id"], "prop": "bt_score", "value": r["score"]}]) for r in rows]
     return ToolResult("single_points_of_failure", {}, rows, claims, summary=f"top {len(rows)} chokepoints")
+
+
+@tool("impacted_teams", "Teams that own at least one service that would be impacted if the given service fails "
+      "(owner as of now), via transitive dependents.",
+      {"service": {"type": "string"}, "depth": {"type": "integer", "default": 6}}, ["service"],
+      cypher_ref="Q1d impacted_teams")
+def impacted_teams(ctx: ToolContext, service: str, depth: int = 6) -> ToolResult:
+    n = clamp_depth(depth, 6)
+    paths = ctx.q(f"MATCH p=(d:Service)-[:DEPENDS_ON*1..{n}]->(s:Service {{id:$sid}}) "
+                  "WHERE ALL(r IN relationships(p) WHERE r.vf <= $at AND r.vt > $at) "
+                  "RETURN d.id AS id, d.name AS name, length(p) AS hops, [r IN relationships(p) | ID(r)] AS eids, "
+                  "[x IN nodes(p) | x.name] AS names ORDER BY hops LIMIT 6000", {"sid": sid(service), "at": ctx.at})
+    best: dict[str, dict] = {}
+    for r in paths:
+        best.setdefault(r["id"], r)
+    if not best:
+        return ToolResult("impacted_teams", {}, [], [], summary="no dependents")
+    owners = ctx.q("MATCH (t:Team)-[o:OWNS]->(d:Service) WHERE d.id IN $ids AND o.vf <= $at AND o.vt > $at "
+                   "RETURN t.name AS team, d.id AS did, ID(o) AS oid", {"ids": list(best), "at": ctx.at})
+    by_team: dict[str, list[dict]] = {}
+    for o in owners:
+        by_team.setdefault(o["team"], []).append(o)
+    claims, out = [], []
+    for team, items in sorted(by_team.items()):
+        first = min(items, key=lambda o: (best[o["did"]]["hops"], best[o["did"]]["name"]))
+        p = best[first["did"]]
+        claims.append(Claim(f"team {team} owns {p['name']}, which depends on {service.replace('svc:', '')} "
+                            f"via {' → '.join(p['names'])}", edge_ids=[first["oid"]] + p["eids"]))
+        out.append({"team": team, "services": sorted(best[o["did"]]["name"] for o in items)})
+    return ToolResult("impacted_teams", {}, out, claims, summary=f"{len(out)} team(s) impacted")

@@ -80,8 +80,8 @@ def current_facts(ctx: ToolContext, limit: int = 30) -> list[dict]:
 
 
 # ----------------------------------------------------------------------------- incidents and actions
-def open_incident(ctx: ToolContext, alert_id: str, service_id: str, severity: int, signal: str) -> str:
-    iid = "inc:" + alert_id.split(":", 1)[1]
+def open_incident(ctx: ToolContext, alert_id: str, service_id: str, severity: int, signal: str, run_id: str = "") -> str:
+    iid = "inc:" + alert_id.split(":", 1)[1] + (f"~{run_id[:4]}" if run_id else "")
     ctx.q("MATCH (a:Alert {id:$a}), (s:Service {id:$s}) "
           "MERGE (i:Incident {id:$i}) SET i.ts_open = $at, i.severity = $sev, i.signal = $sig, i.title = $title, "
           "i.summary = $title, i.status = 'open' "

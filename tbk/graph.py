@@ -6,16 +6,23 @@ validated before they become part of a graph name.
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
+import time
 from typing import Any
 
 from falkordb import FalkorDB
+from redis.exceptions import ResponseError
 
 from .config import Settings, get_settings
 from .switches import GraphDisabled, graph_enabled
 
 _SLUG = re.compile(r"^[a-z][a-z0-9_]{1,31}$")
+# FalkorDB queues at most MAX_QUEUED_QUERIES (default 25) per server; admission control keeps one process below that
+# and retries with backoff if several processes together still overflow it.
+MAX_INFLIGHT = int(os.getenv("TBK_MAX_INFLIGHT", "16"))
+RETRIES = 7
 
 
 def graph_name(tenant: str) -> str:
@@ -29,6 +36,7 @@ class GraphStore:
         self.settings = settings or get_settings()
         self._db: FalkorDB | None = None
         self._lock = threading.Lock()
+        self._gate = threading.BoundedSemaphore(MAX_INFLIGHT)
 
     @property
     def db(self) -> FalkorDB:
@@ -57,9 +65,19 @@ class GraphStore:
 
     def query(self, tenant: str, cypher: str, params: dict | None = None, *, raw: bool = False) -> list[dict[str, Any]]:
         g = self.raw_graph(tenant) if raw else self.graph(tenant)
-        res = g.query(cypher, params or {})
+        res = self._run(g, cypher, params or {})
         names = [h[1] for h in res.header]
         return [dict(zip(names, row)) for row in res.result_set]
+
+    def _run(self, g, cypher: str, params: dict):
+        for attempt in range(RETRIES):
+            with self._gate:
+                try:
+                    return g.query(cypher, params)
+                except ResponseError as e:
+                    if "Max pending queries" not in str(e) or attempt == RETRIES - 1:
+                        raise
+            time.sleep(0.01 * (2 ** attempt))               # back off outside the gate, then retry
 
     def explain(self, tenant: str, cypher: str) -> str:
         return str(self.raw_graph(tenant).explain(cypher))

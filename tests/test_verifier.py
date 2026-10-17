@@ -84,3 +84,13 @@ def test_cross_tenant_edge_ids_do_not_leak(ds):
     v = verify_claims(orbit, res.claims)
     # same ids may exist in orbit but they belong to different entities -> names don't line up
     assert v.grounded_pct < 100.0
+
+
+def test_monotone_counter_claim_survives_concurrent_growth(ctx):
+    res = run_tool(ctx, "rank_runbooks", {"signal": "error-rate"})
+    stat = next(c for c in res.claims if c.assert_props)
+    assert _one(ctx, stat).status == "grounded"
+    ctx.q("MATCH (rb:Runbook {id:$i}) SET rb.attempts = rb.attempts + 5", {"i": stat.assert_props[0]["node_id"]})
+    assert _one(ctx, stat).status == "grounded"            # counters grew since the read: the claim is still true
+    stat.assert_props[0]["value"] += 1000                  # but an inflated minimum is rejected
+    assert _one(ctx, stat).status == "withheld"

@@ -38,7 +38,7 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
         return RunReport(run_id, tenant, alert_id, None, True, "none", error=f"unknown alert {alert_id}")
     ctx = ToolContext(tenant, ts)
     report = RunReport(run_id, tenant, alert_id, None, True, "llm" if (use_llm and _llm_ok()) else "offline-playbook")
-    tri, ticket = run_triage(ctx, alert_id)
+    tri, ticket = run_triage(ctx, alert_id, run_id)
     report.agents.append(tri)
     if not ticket:
         report.error = tri.headline
