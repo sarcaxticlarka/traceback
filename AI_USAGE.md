@@ -7,7 +7,7 @@ in a single working session at the participant's direction: the synthetic-compan
 memory/task layers, agents, evaluation harness, API, MCP server, React console, tests and documentation.
 
 **Verification performed**
-- 69 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
+- 75 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
   behaviour, tenant isolation, MCP client round-trip, LLM paths with a scripted fake client).
 - Evaluation ground truth is computed from the generator's model, independently of FalkorDB.
 - Real-repo benchmark on 6 public repositories (110 auto-generated questions, ground truth independent of the database).

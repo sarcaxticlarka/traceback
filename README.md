@@ -103,7 +103,9 @@ Mistral, DeepSeek, local Ollama) has three narrow jobs: choose which tool to cal
 calling the same tools, and polish claim wording, after which the verifier rejects any added entity. It never decides what
 is *true*, and it receives tool results (module names, authors, commit subjects, short doc snippets), not your source files.
 
-**Bring your own keys, with failover.** Add several providers in the console (**LLM** button); if one hits a rate limit, runs
+**Don't trust us? Audit with your own key.** Press *Audit with my key* next to any claims: your model gets only each claim and its evidence (edges, import lines, ownership rule) and says supported / partial / unsupported. It uses your key only (never the server's), is shown beside the verifier and never overrides it, and disagreements are listed first.
+
+**Bring your own keys, with failover.** If every provider fails, the investigation still completes with the built-in playbook. Add several providers in the console (**LLM** button); if one hits a rate limit, runs
 out of quota, is overloaded or rejects the key, the next takes over mid-investigation and the UI shows which answered. Keys
 travel per request, are never stored or logged server-side, and live in the browser only if you tick "remember".
 
@@ -132,7 +134,7 @@ travel per request, are never stored or logged server-side, and live in the brow
 | **Anthropic SDK, httpx** (optional) | Claude and OpenAI-compatible providers with failover |
 | **NumPy** | Dense/sparse retrieval for the documents-only baseline |
 | **React 18, Vite, d3-force, fflate** | Console: landing, analysis lab, evidence graph (plain SVG), in-browser folder zipping |
-| **Docker / Compose**, **pytest** (69 tests) | Packaging, verification |
+| **Docker / Compose**, **pytest** (76 tests) | Packaging, verification |
 
 ## Setup
 

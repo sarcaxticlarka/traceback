@@ -28,6 +28,7 @@ Base: `http://localhost:8765`. `tenant` is `helix` or `orbit`.
 | `POST /api/impact` `{tenant, sha or modules}` | Change impact: touched, impacted, owners, reviewers, risk |
 | `GET /api/provenance?tenant=&edge_id=` | Why an edge exists: basis, import sites, ownership rule |
 | `GET /api/bench/real` | Real-repo benchmark results |
+| `POST /api/audit` `{tenant, claims}` + `X-LLM-Providers` | Independent audit by the caller's own LLM key(s); 400 without one (server keys are not used) |
 | `GET /api/tools` | Tool catalog with Cypher refs |
 | `POST /api/admin/reseed?tenant=` | Reset a tenant to the seed data |
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 
 from .. import memory
-from ..llm import Goal, make_planner
+from ..llm import Goal, InvestigatePlanner, make_planner
 from ..tools import ToolContext, ToolResult
 from ..tools.common import fmt_ts
 from ..verifier import verify_claims
@@ -61,6 +61,15 @@ def run_investigator(ctx: ToolContext, goal: Goal, *, task_id: str | None = None
     episode = memory.start_episode(ctx, "investigator", f"investigate {goal.alert_id or goal.service}", incident_id)
     planner = make_planner(goal, llm)
     results, steps = run_tool_loop(ctx, planner, "investigator", episode)
+    fell_back = False
+    if getattr(planner, "error", None):
+        # every LLM provider failed: finish with the deterministic playbook, reusing whatever the model already gathered
+        fb = InvestigatePlanner(goal)
+        results, more = run_tool_loop(ctx, fb, "investigator", episode, history=results, start=len(steps))
+        for r in more:
+            r.why = "built-in playbook (LLM providers unavailable). " + r.why
+        steps += more
+        planner, fell_back = fb, True
     service = getattr(planner, "service", "") or goal.service
     signal = getattr(planner, "signal", "") or goal.signal
     claims = pool_claims(results)
@@ -70,7 +79,7 @@ def run_investigator(ctx: ToolContext, goal: Goal, *, task_id: str | None = None
     finding = build_finding(ctx, goal, results, service, signal)
     finding["grounded_pct"] = verification.grounded_pct
     if llm is not None:
-        finding["llm"] = llm.summary() | {"planner_error": getattr(planner, "error", None)}
+        finding["llm"] = llm.summary() | {"planner_error": getattr(planner, "error", None), "fell_back_to_playbook": fell_back}
     ms = (time.perf_counter() - t0) * 1000
     memory.finish_episode(ctx, episode, "completed" if finding["suspect"] else "no-suspect", ms)
     report = AgentReport("investigator", episode, task_id, steps, verification.to_dict(), finding, headline(finding),

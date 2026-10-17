@@ -240,6 +240,10 @@ def test_all_providers_down_still_returns_a_grounded_partial_report(monkeypatch)
     monkeypatch.setattr("tbk.agents.orchestrator.resolve_client", lambda use_llm=None: FailoverClient([dead]))
     r = run_incident("helix", LA["alert"])
     assert r.error is None and r.llm["failovers"][0]["kind"] == "quota"
+    inv = next(a for a in r.agents if a.agent == "investigator")
+    assert inv.payload["suspect"]["deploy"] == LA["cause_deploy"]          # a full investigation, not a hollow one
+    assert r.llm["fell_back_to_playbook"] is True and r.grounded_pct == 100.0
+    assert any("playbook" in s.why for s in inv.steps)
 
 
 def test_rephrase_cannot_smuggle_an_ungrounded_entity():

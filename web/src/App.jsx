@@ -53,7 +53,7 @@ export default function App() {
 
   const userKeys = llm.configs.filter((c) => c.api_key)
   const useLlm = !llm.enabled ? false : userKeys.length ? true : null
-  const ctx = useMemo(() => ({ tenant, setTenant, graphOn, useLlm, userKeys, memKey, bumpMemory: () => setMemKey((k) => k + 1), ...wsApi, theme }),
+  const ctx = useMemo(() => ({ tenant, setTenant, graphOn, useLlm, userKeys, memKey, openLlm: () => setLlmOpen(true), bumpMemory: () => setMemKey((k) => k + 1), ...wsApi, theme }),
     [tenant, graphOn, useLlm, llm, memKey, wsApi.workspaces, theme.dark])
 
   if (route.path === '/' || route.path === '') return <AppCtx.Provider value={ctx}><Landing theme={theme} /></AppCtx.Provider>

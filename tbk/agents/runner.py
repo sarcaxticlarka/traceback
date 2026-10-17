@@ -7,11 +7,12 @@ from ..tools import ToolContext, ToolResult, run_tool
 from .types import StepRecord
 
 
-def run_tool_loop(ctx: ToolContext, planner: Planner, agent: str, episode_id: str | None,
-                  max_steps: int = 14) -> tuple[list[ToolResult], list[StepRecord]]:
-    results: list[ToolResult] = []
+def run_tool_loop(ctx: ToolContext, planner: Planner, agent: str, episode_id: str | None, max_steps: int = 14,
+                  history: list[ToolResult] | None = None, start: int = 0) -> tuple[list[ToolResult], list[StepRecord]]:
+    """``history``/``start`` let a fallback planner continue where a failed one stopped (indices keep counting up)."""
+    results: list[ToolResult] = list(history or [])
     records: list[StepRecord] = []
-    for i in range(max_steps):
+    for i in range(start, start + max_steps):
         step = planner.next(results)
         if step is None:
             break

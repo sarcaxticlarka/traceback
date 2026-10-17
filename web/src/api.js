@@ -38,6 +38,7 @@ export const api = {
   alerts: (tenant) => j(`/api/alerts?${q({ tenant })}`),
   run: (body, configs) => j('/api/run', postH(body, configs)),
   ask: (body, configs) => j('/api/ask', postH(body, configs)),
+  audit: (tenant, claims, configs) => j('/api/audit', postH({ tenant, claims }, configs)),
   llmProviders: () => j('/api/llm/providers'),
   llmTest: (configs) => j('/api/llm/test', { method: 'POST', headers: llmHeader(configs) }),
   verify: (tenant, claims) => j('/api/verify', post({ tenant, claims })),

@@ -7,6 +7,7 @@ import GraphView from '../components/GraphView'
 import AskView from '../components/AskView'
 import EvidenceDrawer from '../components/EvidenceDrawer'
 import ReportMenu from '../components/ReportMenu'
+import AuditButton from '../components/AuditButton'
 import { repoMarkdown, repoReport } from '../lib/report'
 import Investigate from './Investigate'
 import Icon from '../components/ui/Icon'
@@ -57,7 +58,7 @@ function ToolCard({ title, tenant, tool, args, onEvidence, hint }) {
   const claims = data?.verification?.claims || []
   return (
     <div className="card">
-      <div className="row between"><h3 style={{ margin: 0 }}>{title}</h3>{data?.verification && <GroundedBadge pct={data.verification.grounded_pct} n={data.verification.n_claims} />}</div>
+      <div className="row between"><h3 style={{ margin: 0 }}>{title}</h3><span className="row" style={{ gap: 6 }}>{data?.verification && <GroundedBadge pct={data.verification.grounded_pct} n={data.verification.n_claims} />}{claims.length > 0 && <AuditButton tenant={tenant} claims={claims} label="Audit" />}</span></div>
       {hint && <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 10px' }}>{hint}</p>}
       {loading ? <div className="row" style={{ marginTop: 10 }}><Spinner /> Querying the graph…</div> : error ? <div className="banner">{error}</div>
         : claims.length ? <div className="scroll" style={{ maxHeight: 380, marginTop: 8 }}><ClaimRows claims={claims} onEvidence={onEvidence} /></div> : <Empty icon="check">Nothing notable found.</Empty>}
@@ -207,7 +208,7 @@ function ImpactTab({ ws, onEvidence }) {
               <span className="muted" style={{ fontSize: 12 }}>The risk score is a transparent heuristic (impacted modules, churn, single-author code); the evidence on the right is verified.</span>
             </div>
           </div>
-          <div className="card"><div className="row between"><h3 style={{ margin: 0 }}>Evidence</h3><GroundedBadge pct={res.verification.grounded_pct} n={res.verification.n_claims} /></div>
+          <div className="card"><div className="row between"><h3 style={{ margin: 0 }}>Evidence</h3><span className="row" style={{ gap: 6 }}><GroundedBadge pct={res.verification.grounded_pct} n={res.verification.n_claims} /><AuditButton tenant={ws.tenant} claims={res.verification.claims} label="Audit" /></span></div>
             <div className="scroll" style={{ marginTop: 10 }}><ClaimRows claims={res.verification.claims} onEvidence={onEvidence} /></div></div>
         </div>
       )}

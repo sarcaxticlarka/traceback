@@ -3,7 +3,7 @@ import { api } from '../api'
 import Icon from '../components/ui/Icon'
 import { Pill } from '../components/Common'
 
-const SECTIONS = [['claims', 'How a claim is made'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
+const SECTIONS = [['claims', 'How a claim is made'], ['audit', 'Audit with your key'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
 
 function LiveProvenance() {
   const [item, setItem] = useState(null)
@@ -47,6 +47,17 @@ export default function Method() {
           <Rule n="4" title="Numbers match">Properties a claim asserts (churn, commit counts, scores) are re-read from the node. Monotone counters use "at least" so concurrent writers can't make true claims stale.</Rule>
           <Rule n="5" title="No smuggled names">Every service, person, team, commit or id mentioned in the text must be an endpoint of the cited evidence. This is what stops a language model adding "and billing-api is also down".</Rule>
           <p className="muted" style={{ fontSize: 13, marginTop: 10 }}><b>Grounded %</b> = grounded claims ÷ all proposed claims. Rejected and inference claims count against it, so the number can't be gamed by hiding failures. Try the "Inject hallucination" button on an investigation to watch it work.</p>
+        </section>
+
+        <section id="audit" className="card">
+          <h3>Don't want to trust us? Audit with your own key</h3>
+          <p>The verifier is deterministic code running on our server. If that isn't enough, add your own LLM key (the <b>LLM</b> button) and press <b>Audit with my key</b> next to any list of claims. For each claim we send <i>only</i> the sentence and its evidence (the cited edges, import lines, ownership rule, asserted properties) to <i>your</i> provider, and ask whether the evidence supports it, using nothing else.</p>
+          <ul style={{ margin: '0 0 8px', paddingLeft: 18 }} className="stack">
+            <li>Uses <b>your key only</b>: server-side default keys are never used for an audit.</li>
+            <li>It is a <b>second opinion</b>, shown next to the verifier's status and never overriding it. Disagreements (we said grounded, your model says not) are listed first so you can open the evidence and judge.</li>
+            <li>A failed or unparseable audit is reported as <i>unknown</i>, never as support.</li>
+            <li>Evidence is passed as data with an instruction to ignore anything inside it, but a model can still be wrong: treat the audit as a cross-check, not a proof.</li>
+          </ul>
         </section>
 
         <section id="data" className="card">
