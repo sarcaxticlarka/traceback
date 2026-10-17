@@ -134,7 +134,7 @@ travel per request, are never stored or logged server-side, and live in the brow
 | **Anthropic SDK, httpx** (optional) | Claude and OpenAI-compatible providers with failover |
 | **NumPy** | Dense/sparse retrieval for the documents-only baseline |
 | **React 18, Vite, d3-force, fflate** | Console: landing, analysis lab, evidence graph (plain SVG), in-browser folder zipping |
-| **Docker / Compose**, **pytest** (76 tests) | Packaging, verification |
+| **Docker / Compose**, **pytest** (75 tests) | Packaging, verification |
 
 ## Setup
 
