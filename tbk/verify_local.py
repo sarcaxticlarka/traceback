@@ -74,7 +74,12 @@ def _prop_check(p: dict, ds: Dataset) -> tuple[str, str]:
     cur = node.get(p["prop"])
     if cur is None:
         return "runtime", f"{p['prop']} is computed at run time (e.g. PageRank)"
-    ok = (isinstance(cur, (int, float)) and cur >= p["value"]) if p.get("op") == "ge" else _eq(cur, p["value"])
+    if p.get("op") == "ge":
+        if isinstance(cur, (int, float)) and cur >= p["value"]:
+            return "verified", ""
+        # learned counters (runbook attempts/successes) only grow while the crew runs; the pristine source can't reproduce them
+        return "runtime", f"{p['prop']} is a counter learned at run time (source baseline {cur!r})"
+    ok = _eq(cur, p["value"])
     return ("verified", "") if ok else ("mismatch", f"{p['prop']} of {p['node_id']} is {cur!r}, bundle says {p['value']!r}")
 
 

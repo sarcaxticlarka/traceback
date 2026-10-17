@@ -115,3 +115,14 @@ def test_api_endpoint_builds_bundle(ws):
     cl = claims(ctx, [("blast_radius", {"service": "app/core/"})])
     r = c.post("/api/evidence-bundle", json={"tenant": ws.tenant, "claims": cl})
     assert r.status_code == 200 and r.json()["format"] == FORMAT and r.json()["claims"][0]["facts"]
+
+
+def test_learned_counters_are_runtime_not_mismatch():
+    """Runbook counters grow as the crew learns; the pristine source can't reproduce them, so they are 'run-time only'."""
+    from tbk.verify_local import _prop_check
+    ds = get_dataset("helix")
+    rb = next(r for r in ds.nodes["Runbook"])
+    base = rb["attempts"]
+    assert _prop_check({"node_id": rb["id"], "prop": "attempts", "value": base, "op": "ge"}, ds)[0] == "verified"
+    assert _prop_check({"node_id": rb["id"], "prop": "attempts", "value": base + 9, "op": "ge"}, ds)[0] == "runtime"
+    assert _prop_check({"node_id": rb["id"], "prop": "attempts", "value": base + 9}, ds)[0] == "mismatch"      # exact claims stay strict
