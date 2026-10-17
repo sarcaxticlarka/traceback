@@ -46,7 +46,7 @@ class GraphStore:
             with self._lock:
                 if self._db is None:
                     s = self.settings
-                    self._db = FalkorDB(host=s.falkor_host, port=s.falkor_port, password=s.falkor_password, ssl=s.falkor_ssl,
+                    self._db = FalkorDB(host=s.falkor_host, port=s.falkor_port, username=s.falkor_username, password=s.falkor_password, ssl=s.falkor_ssl,
                                         socket_connect_timeout=5, socket_timeout=30)
         return self._db
 

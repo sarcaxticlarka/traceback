@@ -6,14 +6,14 @@ One Render web service runs the API **and** serves the web console. The graph li
 
 ## 1. Create the database (FalkorDB Cloud, free)
 1. Sign up at <https://app.falkordb.cloud> and create a **Free** instance (no credit card).
-2. Copy the connection details: **host**, **port** and **password**.
+2. In the deployment form choose a **username** and **password** and keep both. When the instance is running, copy its **host** and **port** from the instance page (the host is a hostname, not the instance ID).
 
 Things to know about the free tier: 100 MB of memory, no persistence or backups, no TLS, and an instance that is idle for a day is stopped. The API re-seeds the demo companies whenever it starts, so the console still works after a restart. Analysed repositories are temporary.
 
 ## 2. Deploy the app (Render)
 1. Push this repository to GitHub.
 2. In Render: **New → Blueprint**, pick the repository. Render reads `render.yaml`.
-3. Fill in the three values it asks for: `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`.
+3. Fill in the values it asks for: `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_USERNAME`, `FALKORDB_PASSWORD`.
 4. Click **Apply**. The first build takes several minutes (it builds the web console and installs the API).
 5. Open the `https://<name>.onrender.com` URL. The first visit after a quiet period shows a loading screen while the free service wakes up.
 
@@ -22,7 +22,7 @@ If you prefer clicking through manually: **New → Web Service → Docker**, sam
 ## Environment variables
 | Variable | Purpose |
 |---|---|
-| `FALKORDB_HOST` / `FALKORDB_PORT` / `FALKORDB_PASSWORD` | Your FalkorDB Cloud instance |
+| `FALKORDB_HOST` / `FALKORDB_PORT` / `FALKORDB_USERNAME` / `FALKORDB_PASSWORD` | Your FalkorDB Cloud instance |
 | `FALKORDB_SSL` | `0` for the free tier (no TLS); `1` if your database uses TLS |
 | `TBK_ADMIN_TOKEN` | Secret for `POST /api/admin/reseed` (send it as the `X-Admin-Token` header). Without it the endpoint is disabled on public hosts |
 | `TBK_MAX_WORKSPACES`, `TBK_INGESTS_PER_HOUR`, `TBK_MAX_FILES` | Abuse limits for analysed repositories |
