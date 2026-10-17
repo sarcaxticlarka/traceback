@@ -1,0 +1,29 @@
+# Render Blueprint: one free web service that serves the API and the web console.
+# The database is FalkorDB Cloud (free tier): set the FALKORDB_* values in the Render dashboard.
+services:
+  - type: web
+    name: traceback
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: FALKORDB_HOST
+        sync: false
+      - key: FALKORDB_PORT
+        sync: false
+      - key: FALKORDB_PASSWORD
+        sync: false
+      - key: FALKORDB_SSL
+        value: "0"          # FalkorDB Cloud's free tier has no TLS
+      - key: TBK_ADMIN_TOKEN
+        generateValue: true  # protects the destructive /api/admin/reseed endpoint
+      - key: TBK_MAX_WORKSPACES
+        value: "50"
+      - key: TBK_INGESTS_PER_HOUR
+        value: "6"
+      - key: TBK_MAX_FILES
+        value: "3000"
+      # optional: a server-side default LLM key (leave unset and visitors use the offline planner or their own key)
+      - key: ANTHROPIC_API_KEY
+        sync: false

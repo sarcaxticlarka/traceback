@@ -8,3 +8,4 @@ web/dist/
 .pytest_cache/
 
 data/workspaces/
+.DS_Store

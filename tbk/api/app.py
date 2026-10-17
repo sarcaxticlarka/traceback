@@ -1,7 +1,9 @@
 """HTTP API for the incident console. Run: ``uvicorn tbk.api.app:app --port 8000``."""
 from __future__ import annotations
 
+import hmac
 import json
+import os
 import threading
 import time
 from collections import OrderedDict
@@ -168,7 +170,14 @@ def tools_catalog():
 
 
 @app.post("/api/admin/reseed")
-def reseed(tenant: str = Query(...)):
+def reseed(request: Request, tenant: str = Query(...), x_admin_token: str | None = Header(default=None)):
+    # destructive: on a public host it needs TBK_ADMIN_TOKEN; without a token it only works from the machine itself
+    token = os.getenv("TBK_ADMIN_TOKEN", "")
+    if token:
+        if not x_admin_token or not hmac.compare_digest(x_admin_token, token):
+            raise HTTPException(403, "admin token required")
+    elif (request.client.host if request.client else "") not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(403, "reseed is disabled on this server (set TBK_ADMIN_TOKEN to enable it)")
     _tenant(tenant)
     counts = load_dataset(get_store(), get_dataset(tenant), reset=True)
     clear_vocabulary_cache(tenant)

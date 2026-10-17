@@ -177,6 +177,10 @@ MCP client config (Claude Desktop):
                                   "args": ["-m", "tbk.mcp_server"], "cwd": "/ABS/PATH/traceback" } } }
 ```
 
+### Deploy for free
+
+See [DEPLOY.md](DEPLOY.md): one Render web service (`render.yaml`) plus a free FalkorDB Cloud database. Set `TBK_ADMIN_TOKEN` on any public host.
+
 ## Project layout
 
 ```
