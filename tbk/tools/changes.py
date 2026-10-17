@@ -4,6 +4,7 @@ from __future__ import annotations
 from .base import Claim, ToolContext, ToolResult, tool
 from .common import clamp_depth, fmt_ts
 from .topology import sid
+from .walk import walk
 
 
 @tool("recent_changes",
@@ -14,16 +15,16 @@ from .topology import sid
 def recent_changes(ctx: ToolContext, service: str, window_hours: int = 24, depth: int = 2) -> ToolResult:
     n = clamp_depth(depth, 2, 4)
     since = ctx.at - int(window_hours) * 3600
+    scope = walk(ctx, sid(service), direction="out", depth=n)
     rows = ctx.q(
-        f"MATCH p=(s:Service {{id:$sid}})-[:DEPENDS_ON*0..{n}]->(x:Service) "
-        "WHERE ALL(r IN relationships(p) WHERE r.vf <= $at AND r.vt > $at) "
-        "MATCH (a:Person)-[au:AUTHORED]->(d:Deploy)-[dp:DEPLOYED_TO]->(x) "
-        "WHERE d.ts >= $since AND d.ts <= $at "
-        "RETURN d.id AS did, d.sha AS sha, d.ts AS ts, d.status AS status, x.name AS svc, a.name AS author, "
-        "a.id AS aid, ID(au) AS au, ID(dp) AS dp, length(p) AS hops, "
-        "[r IN relationships(p) | ID(r)] AS eids, [y IN nodes(p) | y.name] AS names "
-        "ORDER BY hops, ts DESC LIMIT 400",
-        {"sid": sid(service), "at": ctx.at, "since": since})
+        "MATCH (a:Person)-[au:AUTHORED]->(d:Deploy)-[dp:DEPLOYED_TO]->(x:Service) "
+        "WHERE x.id IN $ids AND d.ts >= $since AND d.ts <= $at "
+        "RETURN d.id AS did, d.sha AS sha, d.ts AS ts, d.status AS status, x.id AS xid, x.name AS svc, a.name AS author, "
+        "a.id AS aid, ID(au) AS au, ID(dp) AS dp ORDER BY ts DESC LIMIT 400",
+        {"ids": list(scope), "at": ctx.at, "since": since})
+    for r in rows:
+        reach = scope[r["xid"]]
+        r.update(hops=reach.hops, eids=reach.edge_ids, names=reach.names)
     best: dict[str, dict] = {}
     for r in rows:
         best.setdefault(r["did"], r)

@@ -8,6 +8,7 @@ import uuid
 import time
 
 from .. import memory, tasks
+from .. import workspaces as W
 from ..llm import Goal
 from ..providers import resolve_client
 from ..switches import graph_switch
@@ -47,7 +48,9 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
         return report
     incident = ticket["incident"]
     report.incident_id = incident
-    goal = Goal("investigate", tenant, ts, alert_id=alert_id, service=ticket["service"], signal=ticket["signal"])
+    mode = "code" if W.is_workspace(tenant) else "ops"
+    goal = Goal("investigate", tenant, ts, alert_id=alert_id, service=ticket["service"], signal=ticket["signal"],
+                window_hours=720 if mode == "code" else 24)
     safety = 0
     while safety < 6:
         safety += 1
@@ -61,7 +64,7 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
                 tasks.complete_task(ctx, task["id"], incident, {"text": rep.headline, "payload": finding,
                                                                "grounded_pct": finding.get("grounded_pct", 0.0)})
             else:
-                rep = run_remediator(ctx, task["id"], incident, outcome=outcome, auto_approve=auto_approve)
+                rep = run_remediator(ctx, task["id"], incident, outcome=outcome, auto_approve=auto_approve, mode=mode)
                 tasks.complete_task(ctx, task["id"], incident)
                 report.learned = rep.payload.get("learned", {})
             report.agents.append(rep)

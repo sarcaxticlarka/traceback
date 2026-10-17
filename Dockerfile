@@ -8,11 +8,13 @@ RUN npm run build
 
 # --- API + agents ---
 FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY pyproject.toml ./
 COPY tbk ./tbk
 RUN pip install --no-cache-dir -e .
 COPY scripts ./scripts
+COPY docs ./docs
 COPY --from=web /web/dist ./web/dist
 ENV PYTHONUNBUFFERED=1 FALKORDB_HOST=falkordb FALKORDB_PORT=6379
 EXPOSE 8765

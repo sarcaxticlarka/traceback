@@ -14,7 +14,7 @@ APPROVAL_THRESHOLD = 0.6
 
 
 def run_remediator(ctx: ToolContext, task_id: str, incident_id: str, *, outcome: bool | None = None,
-                   auto_approve: bool = False) -> AgentReport:
+                   auto_approve: bool = False, mode: str = "ops") -> AgentReport:
     t0 = time.perf_counter()
     episode = memory.start_episode(ctx, "remediator", f"remediate {incident_id}", incident_id)
     upstream = tasks.upstream_findings(ctx, task_id)
@@ -45,14 +45,15 @@ def run_remediator(ctx: ToolContext, task_id: str, incident_id: str, *, outcome:
     # 1. page the person who knows the culprit best (low risk, always executed)
     expert = (f.get("experts") or [None])[0]
     if expert and expert.get("person_id"):
-        aid = memory.create_action(ctx, "remediator", incident_id, "page", f"Page {expert['person']} for {target}",
+        aid = memory.create_action(ctx, "remediator", incident_id, "page", (f"Request review from {expert['person']} (knows {target} best)" if mode == "code" else f"Page {expert['person']} for {target}"),
                                    0.1, "executed", "Person", expert["person_id"])
-        actions.append({"id": aid, "kind": "page", "detail": f"Page {expert['person']} for {target}", "risk": 0.1,
+        actions.append({"id": aid, "kind": "page", "detail": (f"Request review from {expert['person']} (knows {target} best)" if mode == "code" else f"Page {expert['person']} for {target}"), "risk": 0.1,
                         "status": "executed"})
     # 2. propose rollback of the suspect deploy; high-risk actions wait for a human
     if suspect:
         status = "executed" if (risk < APPROVAL_THRESHOLD or auto_approve) else "awaiting_approval"
-        detail = f"Roll back deploy {suspect['sha']} on {suspect['service']}"
+        detail = (f"Propose reverting commit {suspect['sha']} in {suspect['service']}" if mode == "code"
+                  else f"Roll back deploy {suspect['sha']} on {suspect['service']}")
         aid = memory.create_action(ctx, "remediator", incident_id, "propose_rollback", detail, risk, status, "Deploy",
                                    suspect["deploy"])
         actions.append({"id": aid, "kind": "propose_rollback", "detail": detail, "risk": risk, "status": status})

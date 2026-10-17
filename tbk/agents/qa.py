@@ -21,6 +21,8 @@ DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 ALERT = re.compile(r"alert:[A-Za-z0-9\-]+")
 
 INTENTS: list[tuple[str, re.Pattern]] = [
+    ("top_committer", re.compile(r"made the most commits|top contributor|who contributes most", re.I)),
+    ("direct_dependents", re.compile(r"(modules?|services?) (that )?(import|use)s? .* directly|directly (import|use)", re.I)),
     ("page_for_alert", re.compile(r"authored the deploy .*responsible for alert|who authored .*alert", re.I)),
     ("orphaned", re.compile(r"owned by a team with no current members|orphaned", re.I)),
     ("teams_impacted", re.compile(r"which teams own services .*impacted|teams .*impacted", re.I)),
@@ -124,6 +126,11 @@ def answer_question(tenant: str, question: str, at: int = NOW, llm=None) -> Answ
             ans.answers = {m for r in call("owners_of", service=svc).rows for m in r["members"]}
         elif intent == "direct_deps":
             ans.answers = {r["service"] for r in call("dependencies", service=svc, depth=1).rows}
+        elif intent == "direct_dependents":
+            ans.answers = {r["service"] for r in call("blast_radius", service=svc, depth=1, max_claims=12).rows}
+        elif intent == "top_committer":
+            rows = call("top_contributors", service=svc, top=5).rows
+            ans.answers = {r["person"] for r in rows if rows and r["commits"] == rows[0]["commits"]}
         elif intent == "dependents_2hop":
             ans.answers = {r["service"] for r in call("blast_radius", service=svc, depth=2, max_claims=12).rows}
         elif intent == "blast_all":

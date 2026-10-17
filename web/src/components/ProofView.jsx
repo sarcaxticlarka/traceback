@@ -7,12 +7,14 @@ export default function ProofView() {
   const [iso, setIso] = useState(null)
   const [bench, setBench] = useState(null)
   const [tools, setTools] = useState([])
+  const [real, setReal] = useState([])
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     api.evalResults().then(setEv).catch(() => {})
     api.bench().then(setBench).catch(() => {})
     api.tools().then(setTools).catch(() => {})
+    api.benchReal().then(setReal).catch(() => {})
   }, [])
 
   const runIso = async () => { setBusy(true); try { setIso(await api.isolation()) } finally { setBusy(false) } }
@@ -32,6 +34,19 @@ export default function ProofView() {
           </tbody></table></div>
         </> : <div className="empty">Evaluation not available.</div>}
       </div>
+
+      {real.length > 0 && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <h3>Real public repositories · {real.reduce((n, r) => n + (r.aggregate?.all?.n || 0), 0)} auto-generated questions</h3>
+          <div className="scroll" style={{ maxHeight: 'none' }}><table><thead><tr><th>Repository</th><th className="num">Files</th><th className="num">Modules</th><th className="num">Module deps</th><th className="num">Commits</th><th className="num">Questions</th><th className="num">Graph</th><th className="num">Docs-only</th><th className="num">Grounded</th><th className="num">Ingest</th></tr></thead><tbody>
+            {real.filter((r) => r.aggregate).map((r) => <tr key={r.repo}><td><a href={`https://github.com/${r.repo}`} target="_blank" rel="noreferrer">{r.repo}</a></td>
+              <td className="num">{r.stats.files}</td><td className="num">{r.stats.modules}</td><td className="num">{r.stats.module_deps}</td><td className="num">{r.stats.commits}</td>
+              <td className="num">{r.aggregate.all.n}</td><td className="num">{Math.round(r.aggregate.all.graph_exact * 100)}%</td><td className="num">{Math.round(r.aggregate.all.docs_exact * 100)}%</td>
+              <td className="num">{Math.round(r.aggregate.all.grounded_pct)}%</td><td className="num">{r.stats.ingest_s}s</td></tr>)}
+          </tbody></table></div>
+          <p className="muted" style={{ marginTop: 8, fontSize: 12.5 }}>Each repo is cloned fresh, analysed, loaded into its own graph and quizzed. Reproduce: <code>python scripts/bench_real_repos.py</code>. Ground truth comes from the static analyser and the raw commit list, not from the database under test.</p>
+        </div>
+      )}
 
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card">

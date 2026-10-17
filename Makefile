@@ -25,3 +25,9 @@ mcp:              ## MCP server over stdio
 	$(PY) -m tbk.mcp_server
 up:               ## everything in containers
 	docker compose up --build
+
+.PHONY: bench-real cli-demo
+bench-real:       ## clone 6 real public repos, benchmark graph vs docs-only -> docs/BENCH_REAL.md
+	$(PY) scripts/bench_real_repos.py
+cli-demo:         ## analyse a real repo from the terminal
+	$(PY) -m tbk.cli analyze https://github.com/pallets/click

@@ -9,13 +9,13 @@ from pathlib import Path
 
 import base64
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import isolation, memory, sim, subgraph, tasks
+from .. import isolation, memory, sim, subgraph, tasks, workspaces as W
 from ..agents.orchestrator import run_incident
 from ..agents.qa import answer_question
 from ..config import DATA_DIR, NOW, ROOT, get_settings
@@ -36,8 +36,8 @@ _RUNS_LOCK = threading.Lock()
 
 
 def _tenant(t: str) -> str:
-    if t not in get_settings().tenants:
-        raise HTTPException(404, f"unknown tenant {t!r}; configured: {get_settings().tenants}")
+    if not W.known_tenant(t):
+        raise HTTPException(404, f"unknown tenant or expired workspace {t!r}")
     return t
 
 
@@ -52,8 +52,8 @@ def _user_llm(x_llm_providers: str | None) -> list[providers.ProviderConfig]:
         raise HTTPException(400, f"invalid X-LLM-Providers: {str(e)[:160]}")
 
 
-def _ctx(tenant: str, at: int = NOW) -> ToolContext:
-    return ToolContext(_tenant(tenant), at)
+def _ctx(tenant: str, at: int | None = None) -> ToolContext:
+    return ToolContext(_tenant(tenant), at or W.tenant_now(tenant))
 
 
 class RunRequest(BaseModel):
@@ -141,6 +141,165 @@ def reseed(tenant: str = Query(...)):
 
 
 # --------------------------------------------------------------------------------------- incidents
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    return (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?"))
+
+
+def _check_rate(request: Request) -> None:
+    if not W.allow_ingest(_client_ip(request)):
+        raise HTTPException(429, "Too many repositories analysed from your address this hour. Try again later.")
+
+
+class GithubRequest(BaseModel):
+    url: str
+
+
+class ToolRequest(BaseModel):
+    tenant: str
+    tool: str
+    args: dict = {}
+
+
+class ImpactRequest(BaseModel):
+    tenant: str
+    sha: str = ""
+    modules: str = ""
+
+
+@app.post("/api/workspaces/github")
+def ws_github(req: GithubRequest, request: Request):
+    from ..ingest import fetch
+    from ..ingest.pipeline import start_github
+    _check_rate(request)
+    try:
+        fetch.parse_github_url(req.url)
+    except fetch.IngestError as e:
+        raise HTTPException(400, str(e))
+    return start_github(req.url).public()
+
+
+@app.post("/api/workspaces/upload")
+async def ws_upload(request: Request, file: UploadFile = File(...), label: str = Form("")):
+    from ..ingest.limits import MAX_UPLOAD_BYTES
+    from ..ingest.pipeline import start_upload
+    _check_rate(request)
+    buf = bytearray()
+    while chunk := await file.read(1_000_000):
+        buf += chunk
+        if len(buf) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"Upload exceeds {MAX_UPLOAD_BYTES // 1_000_000} MB; zip only source files.")
+    name = (label or (file.filename or "upload").rsplit(".", 1)[0])[:60]
+    return start_upload(name, zip_bytes=bytes(buf)).public()
+
+
+@app.post("/api/workspaces/bundle")
+def ws_bundle(data: dict, request: Request):
+    from ..ingest.pipeline import start_bundle
+    _check_rate(request)
+    return start_bundle(data).public()
+
+
+@app.get("/api/workspaces")
+def ws_list(ids: str = ""):
+    """Only the workspaces whose ids the caller already knows (ids are unguessable); never enumerate other people's repos."""
+    want = [i for i in ids.split(",") if i][:25]
+    return [w.public() for w in (W.get(i) for i in want) if w]
+
+
+@app.get("/api/workspaces/{wid}")
+def ws_get(wid: str):
+    w = W.get(wid)
+    if not w:
+        raise HTTPException(404, "workspace not found or expired")
+    return w.public()
+
+
+@app.delete("/api/workspaces/{wid}")
+def ws_delete(wid: str):
+    if not W.delete(wid):
+        raise HTTPException(404, "workspace not found")
+    return {"deleted": wid}
+
+
+@app.get("/api/workspaces/{wid}/modules")
+def ws_modules(wid: str):
+    w = W.get(wid)
+    if not w or w.status != "ready":
+        raise HTTPException(404, "workspace not ready")
+    return _ctx(w.tenant).q("MATCH (s:Service) RETURN s.id AS id, s.name AS name, s.tier AS tier, s.loc AS loc, s.files AS files, "
+                            "s.commits AS commits, s.churn_90d AS churn, s.dependents AS dependents, s.dependencies AS dependencies, "
+                            "s.top_author AS top_author, s.top_author_share AS share, s.langs AS langs ORDER BY dependents DESC, name")
+
+
+@app.get("/api/workspaces/{wid}/commits")
+def ws_commits(wid: str, limit: int = 40):
+    p = W.workspace_dir(wid) / "commits.json"
+    if not W.get(wid) or not p.exists():
+        raise HTTPException(404, "no commit history for this workspace")
+    return [{k: c[k] for k in ("sha", "author", "ts", "subject")} for c in json.loads(p.read_text())[:max(1, min(limit, 200))]]
+
+
+@app.post("/api/workspaces/{wid}/benchmark")
+def ws_benchmark(wid: str):
+    from ..evalx.repo_eval import run_repo_eval
+    w = W.get(wid)
+    if not w or w.status != "ready":
+        raise HTTPException(404, "workspace not ready")
+    return run_repo_eval(wid)
+
+
+@app.get("/api/workspaces/{wid}/benchmark")
+def ws_benchmark_cached(wid: str):
+    p = W.workspace_dir(wid) / "eval.json"
+    if not p.exists():
+        raise HTTPException(404, "not run yet")
+    return json.loads(p.read_text())
+
+
+@app.post("/api/tool")
+def call_tool(req: ToolRequest):
+    """Run one graph tool and verify its claims. Used by the repo lab for hotspots, bus factor, blast radius..."""
+    from ..tools import run_tool
+    from ..verifier import verify_claims
+    spec = REGISTRY.get(req.tool)
+    if spec is None:
+        raise HTTPException(404, f"unknown tool {req.tool!r}")
+    ctx = _ctx(req.tenant)
+    res = run_tool(ctx, req.tool, req.args)
+    out = res.to_dict()
+    out["verification"] = verify_claims(ctx, res.claims).to_dict() if res.claims and not res.error else None
+    return out
+
+
+@app.post("/api/impact")
+def impact(req: ImpactRequest):
+    return call_tool(ToolRequest(tenant=req.tenant, tool="change_impact", args={k: v for k, v in (("sha", req.sha), ("modules", req.modules)) if v}))
+
+
+@app.get("/api/provenance")
+def provenance(tenant: str, edge_id: int):
+    """Why does this edge exist? Import sites, ownership basis, git, or 'synthetic'."""
+    ctx = _ctx(tenant)
+    rows = ctx.q("MATCH (a)-[r]->(b) WHERE ID(r) = $id RETURN type(r) AS type, labels(a)[0] AS al, coalesce(a.name, a.sha, a.id) AS a, "
+                 "labels(b)[0] AS bl, coalesce(b.name, b.sha, b.id) AS b, properties(r) AS props", {"id": edge_id})
+    if not rows:
+        raise HTTPException(404, "edge not found")
+    r = rows[0]
+    props = r["props"] or {}
+    sites = json.loads(props["sites"]) if isinstance(props.get("sites"), str) and props["sites"].startswith("[") else None
+    basis = props.get("basis") or ("synthetic" if not W.is_workspace(tenant) else "derived")
+    why = {"import": "Source files in the first module import files in the second (static analysis of the import statements below).",
+           "codeowners": "Assigned by a CODEOWNERS rule (last matching rule wins).",
+           "top-committer": "No CODEOWNERS rule matched, so ownership is derived from who made most commits to the module.",
+           "git": "Recorded from the git history (commit author and the files the commit changed).",
+           "contributed-to-owned-modules": "Membership is inferred: this person contributed recently to modules this team owns.",
+           "bundle": "Supplied in the uploaded data bundle.",
+           "synthetic": "This workspace is the built-in synthetic company generated by seed/generate.py."}.get(basis, "Derived during ingestion.")
+    return {"type": r["type"], "from": {"label": r["al"], "name": r["a"]}, "to": {"label": r["bl"], "name": r["b"]},
+            "basis": basis, "why": why, "sites": sites, "rule": props.get("rule"), "count": props.get("count"), "lines": props.get("lines")}
+
+
 @app.get("/api/alerts")
 def alerts(tenant: str, live_only: bool = True):
     rows = get_store().query(_tenant(tenant), "MATCH (a:Alert)-[:FIRED_ON]->(s:Service) WHERE $all OR a.live = true "
@@ -196,7 +355,7 @@ def ask(req: AskRequest, x_llm_providers: str | None = Header(default=None)):
                 "document retrieval is available.", "baseline_docs_only": baseline,
                 "verification": {"grounded_pct": 0.0, "n_claims": 0, "claims": []}, "steps": []}
     with graph_switch(True), providers.llm_scope(_user_llm(x_llm_providers)):
-        a = answer_question(req.tenant, req.question, llm=providers.resolve_client(req.use_llm)).to_dict()
+        a = answer_question(req.tenant, req.question, at=W.tenant_now(req.tenant), llm=providers.resolve_client(req.use_llm)).to_dict()
     a["graph_enabled"] = True
     a["baseline_docs_only"] = baseline
     return a
@@ -268,6 +427,15 @@ def eval_results():
         from ..evalx.run import evaluate
         return evaluate()
     return json.loads(p.read_text())
+
+
+@app.get("/api/bench/real")
+def bench_real():
+    """Results of scripts/bench_real_repos.py (committed copy under docs/ so a fresh deployment has them)."""
+    for p in (DATA_DIR / "bench_real.json", ROOT / "docs" / "bench_real.json"):
+        if p.exists():
+            return json.loads(p.read_text())
+    return []
 
 
 @app.post("/api/isolation")

@@ -18,6 +18,16 @@ Base: `http://localhost:8765`. `tenant` is `helix` or `orbit`.
 | `GET /api/eval` · `POST /api/isolation` · `GET /api/bench` | Proof endpoints |
 | `GET /api/llm/providers` | Provider presets for the UI and which providers the server has default keys for (names only) |
 | `POST /api/llm/test` | One-token check of each supplied provider key; returns ok / error kind, never echoes keys |
+| `POST /api/workspaces/github` `{url}` | Analyse a public GitHub repo (async; poll `GET /api/workspaces/{id}`) |
+| `POST /api/workspaces/upload` (multipart `file`, `label`) | Analyse a zip of source files (no `.git` is read) |
+| `POST /api/workspaces/bundle` `{services, dependencies, teams, deploys, alerts}` | Build a graph from exported catalogue data |
+| `GET /api/workspaces?ids=a,b` · `GET/DELETE /api/workspaces/{id}` | Only the ids you pass; status, stats, delete |
+| `GET /api/workspaces/{id}/modules` · `/commits` | Module table and recent commits |
+| `POST/GET /api/workspaces/{id}/benchmark` | Run / read the per-repo benchmark |
+| `POST /api/tool` `{tenant, tool, args}` | Run any graph tool and verify its claims |
+| `POST /api/impact` `{tenant, sha or modules}` | Change impact: touched, impacted, owners, reviewers, risk |
+| `GET /api/provenance?tenant=&edge_id=` | Why an edge exists: basis, import sites, ownership rule |
+| `GET /api/bench/real` | Real-repo benchmark results |
 | `GET /api/tools` | Tool catalog with Cypher refs |
 | `POST /api/admin/reseed?tenant=` | Reset a tenant to the seed data |
 

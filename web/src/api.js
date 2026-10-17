@@ -17,7 +17,23 @@ const postH = (body, configs) => {
   return { ...base, headers: { ...base.headers, ...llmHeader(configs) } }
 }
 
+const upload = (url, form) => j(url, { method: 'POST', body: form })
+
 export const api = {
+  benchReal: () => j('/api/bench/real'),
+  wsGithub: (url) => j('/api/workspaces/github', post({ url })),
+  wsUpload: (file, label) => { const f = new FormData(); f.append('file', file, file.name || 'upload.zip'); f.append('label', label || ''); return upload('/api/workspaces/upload', f) },
+  wsBundle: (data) => j('/api/workspaces/bundle', post(data)),
+  wsGet: (id) => j(`/api/workspaces/${id}`),
+  wsList: (ids) => (ids.length ? j(`/api/workspaces?${q({ ids: ids.join(',') })}`) : Promise.resolve([])),
+  wsDelete: (id) => j(`/api/workspaces/${id}`, { method: 'DELETE' }),
+  wsModules: (id) => j(`/api/workspaces/${id}/modules`),
+  wsCommits: (id) => j(`/api/workspaces/${id}/commits?limit=60`),
+  wsBenchmark: (id) => j(`/api/workspaces/${id}/benchmark`, { method: 'POST' }),
+  wsBenchmarkCached: (id) => j(`/api/workspaces/${id}/benchmark`),
+  tool: (tenant, tool, args = {}) => j('/api/tool', post({ tenant, tool, args })),
+  impact: (tenant, body) => j('/api/impact', post({ tenant, ...body })),
+  provenance: (tenant, edgeId) => j(`/api/provenance?${q({ tenant, edge_id: edgeId })}`),
   health: () => j('/api/health'),
   alerts: (tenant) => j(`/api/alerts?${q({ tenant })}`),
   run: (body, configs) => j('/api/run', postH(body, configs)),

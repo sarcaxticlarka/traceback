@@ -13,8 +13,8 @@ const SAMPLES = [
   'What is the current decision constraining ledger-store?',
 ]
 
-export default function AskView({ tenant, graphOn, useLlm, keys }) {
-  const [question, setQuestion] = useState(SAMPLES[0])
+export default function AskView({ tenant, graphOn, useLlm, keys, samples = SAMPLES }) {
+  const [question, setQuestion] = useState(samples[0])
   const [res, setRes] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -35,9 +35,8 @@ export default function AskView({ tenant, graphOn, useLlm, keys }) {
           </div>
           <button className="btn" onClick={() => go()} disabled={busy}>{busy ? 'Thinking…' : 'Ask'}</button>
         </div>
-        <div className="row" style={{ marginTop: 10 }}>
-          {SAMPLES.map((s) => <button key={s} className="chip" style={{ cursor: 'pointer', background: 'transparent' }}
-            onClick={() => { setQuestion(s); go(s) }}>{s.length > 52 ? s.slice(0, 51) + '…' : s}</button>)}
+        <div className="suggest">
+          {samples.map((s) => <button key={s}             onClick={() => { setQuestion(s); go(s) }}>{s.length > 64 ? s.slice(0, 63) + '…' : s}</button>)}
         </div>
         {err && <div className="banner" style={{ marginTop: 10 }}>{err}</div>}
       </div>

@@ -61,3 +61,15 @@ Grounded % = grounded / proposed.
   already ran remain verified) instead of crashing.
 - User keys travel per request (`X-LLM-Providers`), live in a `contextvar` for the request, and are never persisted,
   logged or returned. Preset provider URLs are fixed; custom URLs need an explicit server flag.
+
+## Ingestion pipeline (real data)
+
+`ingest/fetch.py` (safe clone / zip) → `analyze.py` (walk tree, resolve imports, choose module depth ≤120, build module graph)
+→ `history.py` (git log, identity resolution by hashed email) → `codeowners.py` → `build.py` (same schema the agents use:
+`Service` = module, `Deploy` = commit, `Team`/`OWNS` from CODEOWNERS or top committer, docs and decisions, auto-generated reported
+issues) → `seed/load.py` (bulk load into `t_repo_<id>`) → `workspaces.py` (registry, 12 h TTL, caps, rate limit).
+
+Design decisions: edges carry provenance (`sites`, `basis`, `rule`); traversal tools use level-by-level BFS (`tools/walk.py`)
+because real import graphs have cycles and FalkorDB aborts slow queries (1 s default); identities are merged by hashed email
+with a collision-free id (`slug-hash`) because name slugs merged look-alike and non-ASCII names in the first benchmark run;
+properties used by claims (`churn_90d`, `dependents`, `top_author_share`) are materialised at ingest and re-asserted by the verifier.

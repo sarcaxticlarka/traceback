@@ -1,0 +1,679 @@
+[
+ {
+  "repo": "pallets/click",
+  "stats": {
+   "files": 91,
+   "modules": 18,
+   "loc": 30469,
+   "languages": {
+    "python": 91
+   },
+   "module_deps": 17,
+   "file_imports": 344,
+   "commits": 1353,
+   "authors": 381,
+   "docs": 43,
+   "decisions": 0,
+   "has_codeowners": false,
+   "owners_from": {
+    "top-committer": 17
+   },
+   "history": true,
+   "now": 1790062790,
+   "module_depth": 4,
+   "hotspots": [
+    {
+     "module": "src/click/",
+     "churn_90d": 1593,
+     "dependents": 16
+    },
+    {
+     "module": "tests/",
+     "churn_90d": 5460,
+     "dependents": 0
+    },
+    {
+     "module": "tests/test_utils/",
+     "churn_90d": 1206,
+     "dependents": 0
+    },
+    {
+     "module": "docs/",
+     "churn_90d": 599,
+     "dependents": 0
+    },
+    {
+     "module": "tests/test_types/",
+     "churn_90d": 462,
+     "dependents": 0
+    }
+   ],
+   "graph_nodes": 1471,
+   "graph_edges": 2536,
+   "ingest_s": 0.6,
+   "skipped": {},
+   "codeowners_path": null
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 14,
+    "graph_exact": 1.0,
+    "docs_exact": 0.286,
+    "graph_f1": 1.0,
+    "docs_f1": 0.286,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 5.4
+   },
+   "2-hop": {
+    "n": 1,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.222,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 5.2
+   },
+   "3+-hop": {
+    "n": 1,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.118,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 5.0
+   },
+   "all": {
+    "n": 16,
+    "graph_exact": 1.0,
+    "docs_exact": 0.25,
+    "graph_f1": 1.0,
+    "docs_f1": 0.271,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 5.2
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 6,
+    "graph": 6,
+    "docs": 3
+   },
+   "direct_dependents": {
+    "n": 2,
+    "graph": 2,
+    "docs": 1
+   },
+   "top_committer": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "dependents_2hop": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   },
+   "blast_all": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   }
+  },
+  "wall_s": 4.2
+ },
+ {
+  "repo": "psf/requests",
+  "stats": {
+   "files": 37,
+   "modules": 6,
+   "loc": 12069,
+   "languages": {
+    "python": 37
+   },
+   "module_deps": 3,
+   "file_imports": 118,
+   "commits": 1435,
+   "authors": 319,
+   "docs": 31,
+   "decisions": 0,
+   "has_codeowners": true,
+   "owners_from": {
+    "top-committer": 4,
+    "codeowners": 1
+   },
+   "history": true,
+   "now": 1790025753,
+   "module_depth": 4,
+   "hotspots": [
+    {
+     "module": "./",
+     "churn_90d": 0,
+     "dependents": 0
+    },
+    {
+     "module": "docs/",
+     "churn_90d": 0,
+     "dependents": 0
+    },
+    {
+     "module": "docs/_themes/",
+     "churn_90d": 0,
+     "dependents": 0
+    },
+    {
+     "module": "src/requests/",
+     "churn_90d": 0,
+     "dependents": 2
+    },
+    {
+     "module": "tests/",
+     "churn_90d": 0,
+     "dependents": 0
+    }
+   ],
+   "graph_nodes": 1310,
+   "graph_edges": 1982,
+   "ingest_s": 0.3,
+   "skipped": {},
+   "codeowners_path": ".github/CODEOWNERS"
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 9,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.148,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.8
+   },
+   "2-hop": {
+    "n": 1,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 4.8
+   },
+   "all": {
+    "n": 10,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.133,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.8
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 2,
+    "graph": 2,
+    "docs": 0
+   },
+   "direct_dependents": {
+    "n": 2,
+    "graph": 2,
+    "docs": 0
+   },
+   "top_committer": {
+    "n": 5,
+    "graph": 5,
+    "docs": 0
+   },
+   "dependents_2hop": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   }
+  },
+  "wall_s": 8.2
+ },
+ {
+  "repo": "expressjs/express",
+  "stats": {
+   "files": 141,
+   "modules": 38,
+   "loc": 21634,
+   "languages": {
+    "javascript": 141
+   },
+   "module_deps": 29,
+   "file_imports": 63,
+   "commits": 1445,
+   "authors": 234,
+   "docs": 15,
+   "decisions": 0,
+   "has_codeowners": false,
+   "owners_from": {
+    "top-committer": 36
+   },
+   "history": true,
+   "now": 1792258923,
+   "module_depth": 4,
+   "hotspots": [
+    {
+     "module": "./",
+     "churn_90d": 1227,
+     "dependents": 0
+    },
+    {
+     "module": "lib/",
+     "churn_90d": 28,
+     "dependents": 4
+    },
+    {
+     "module": "test/support/",
+     "churn_90d": 30,
+     "dependents": 2
+    },
+    {
+     "module": "test/",
+     "churn_90d": 49,
+     "dependents": 0
+    },
+    {
+     "module": "test/acceptance/",
+     "churn_90d": 8,
+     "dependents": 0
+    }
+   ],
+   "graph_nodes": 1699,
+   "graph_edges": 3355,
+   "ingest_s": 0.4,
+   "skipped": {},
+   "codeowners_path": null
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 18,
+    "graph_exact": 1.0,
+    "docs_exact": 0.389,
+    "graph_f1": 1.0,
+    "docs_f1": 0.474,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 6.7
+   },
+   "2-hop": {
+    "n": 5,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.461,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.2
+   },
+   "3+-hop": {
+    "n": 3,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.472,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.0
+   },
+   "all": {
+    "n": 26,
+    "graph_exact": 1.0,
+    "docs_exact": 0.269,
+    "graph_f1": 1.0,
+    "docs_f1": 0.471,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 6.8
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 6,
+    "graph": 6,
+    "docs": 2
+   },
+   "direct_dependents": {
+    "n": 6,
+    "graph": 6,
+    "docs": 5
+   },
+   "top_committer": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "dependents_2hop": {
+    "n": 5,
+    "graph": 5,
+    "docs": 0
+   },
+   "blast_all": {
+    "n": 3,
+    "graph": 3,
+    "docs": 0
+   }
+  },
+  "wall_s": 4.3
+ },
+ {
+  "repo": "spf13/cobra",
+  "stats": {
+   "files": 36,
+   "modules": 2,
+   "loc": 16801,
+   "languages": {
+    "go": 36
+   },
+   "module_deps": 1,
+   "file_imports": 11,
+   "commits": 964,
+   "authors": 344,
+   "docs": 18,
+   "decisions": 0,
+   "has_codeowners": false,
+   "owners_from": {
+    "top-committer": 2
+   },
+   "history": true,
+   "now": 1783734187,
+   "module_depth": 4,
+   "hotspots": [
+    {
+     "module": "./",
+     "churn_90d": 130,
+     "dependents": 1
+    },
+    {
+     "module": "doc/",
+     "churn_90d": 0,
+     "dependents": 0
+    }
+   ],
+   "graph_nodes": 1170,
+   "graph_edges": 1617,
+   "ingest_s": 0.3,
+   "skipped": {},
+   "codeowners_path": null
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 3,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 16.4
+   },
+   "all": {
+    "n": 3,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 16.4
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   },
+   "direct_dependents": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   },
+   "top_committer": {
+    "n": 1,
+    "graph": 1,
+    "docs": 0
+   }
+  },
+  "wall_s": 3.1
+ },
+ {
+  "repo": "gin-gonic/gin",
+  "stats": {
+   "files": 99,
+   "modules": 8,
+   "loc": 24655,
+   "languages": {
+    "go": 99
+   },
+   "module_deps": 15,
+   "file_imports": 31,
+   "commits": 1375,
+   "authors": 491,
+   "docs": 10,
+   "decisions": 0,
+   "has_codeowners": false,
+   "owners_from": {
+    "top-committer": 7
+   },
+   "history": true,
+   "now": 1791609635,
+   "module_depth": 4,
+   "hotspots": [
+    {
+     "module": "./",
+     "churn_90d": 593,
+     "dependents": 1
+    },
+    {
+     "module": "render/",
+     "churn_90d": 20,
+     "dependents": 2
+    },
+    {
+     "module": "ginS/",
+     "churn_90d": 18,
+     "dependents": 0
+    },
+    {
+     "module": "binding/",
+     "churn_90d": 0,
+     "dependents": 1
+    },
+    {
+     "module": "codec/json/",
+     "churn_90d": 0,
+     "dependents": 3
+    }
+   ],
+   "graph_nodes": 1815,
+   "graph_edges": 2798,
+   "ingest_s": 0.3,
+   "skipped": {},
+   "codeowners_path": null
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 14,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 8.5
+   },
+   "2-hop": {
+    "n": 6,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 6.7
+   },
+   "3+-hop": {
+    "n": 5,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.2
+   },
+   "all": {
+    "n": 25,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.0,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.2
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 4,
+    "graph": 4,
+    "docs": 0
+   },
+   "direct_dependents": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "top_committer": {
+    "n": 4,
+    "graph": 4,
+    "docs": 0
+   },
+   "dependents_2hop": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "blast_all": {
+    "n": 5,
+    "graph": 5,
+    "docs": 0
+   }
+  },
+  "wall_s": 3.4
+ },
+ {
+  "repo": "tiangolo/fastapi",
+  "stats": {
+   "files": 1172,
+   "modules": 97,
+   "loc": 120399,
+   "languages": {
+    "python": 1168,
+    "javascript": 4
+   },
+   "module_deps": 160,
+   "file_imports": 1812,
+   "commits": 619,
+   "authors": 50,
+   "docs": 300,
+   "decisions": 0,
+   "has_codeowners": false,
+   "owners_from": {
+    "top-committer": 88
+   },
+   "history": true,
+   "now": 1792163536,
+   "module_depth": 2,
+   "hotspots": [
+    {
+     "module": "fastapi/",
+     "churn_90d": 542,
+     "dependents": 90
+    },
+    {
+     "module": "tests/test_telemetry/",
+     "churn_90d": 4131,
+     "dependents": 1
+    },
+    {
+     "module": "tests/",
+     "churn_90d": 1555,
+     "dependents": 1
+    },
+    {
+     "module": "fastapi/telemetry/",
+     "churn_90d": 1010,
+     "dependents": 2
+    },
+    {
+     "module": "docs/en/",
+     "churn_90d": 2835,
+     "dependents": 0
+    }
+   ],
+   "graph_nodes": 1127,
+   "graph_edges": 2160,
+   "ingest_s": 4.4,
+   "skipped": {},
+   "codeowners_path": null
+  },
+  "aggregate": {
+   "1-hop": {
+    "n": 18,
+    "graph_exact": 1.0,
+    "docs_exact": 0.167,
+    "graph_f1": 1.0,
+    "docs_f1": 0.167,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 8.3
+   },
+   "2-hop": {
+    "n": 6,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.024,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.5
+   },
+   "3+-hop": {
+    "n": 6,
+    "graph_exact": 1.0,
+    "docs_exact": 0.0,
+    "graph_f1": 1.0,
+    "docs_f1": 0.004,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 9.6
+   },
+   "all": {
+    "n": 30,
+    "graph_exact": 1.0,
+    "docs_exact": 0.1,
+    "graph_f1": 1.0,
+    "docs_f1": 0.105,
+    "grounded_pct": 100.0,
+    "graph_p50_ms": 7.8
+   }
+  },
+  "by_intent": {
+   "direct_deps": {
+    "n": 6,
+    "graph": 6,
+    "docs": 3
+   },
+   "direct_dependents": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "top_committer": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "dependents_2hop": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   },
+   "blast_all": {
+    "n": 6,
+    "graph": 6,
+    "docs": 0
+   }
+  },
+  "wall_s": 20.0
+ }
+]

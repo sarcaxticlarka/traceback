@@ -1,94 +1,110 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
-import AskView from './components/AskView'
-import IncidentView from './components/IncidentView'
-import MemoryView from './components/MemoryView'
-import ProofView from './components/ProofView'
-import { Pill, fmtTs } from './components/Common'
+import { AppCtx, isRepo } from './lib/ctx'
+import { go, useRoute } from './lib/router'
+import { useTheme } from './lib/theme'
+import Landing from './pages/Landing'
+import Investigate from './pages/Investigate'
+import Lab from './pages/Lab'
+import Method from './pages/Method'
+import { AskPage, MemoryPage, ProofPage } from './pages/Simple'
 import LLMSettings, { loadLLM } from './components/LLMSettings'
+import Icon from './components/ui/Icon'
+import Logo from './components/ui/Logo'
+import { Pill } from './components/Common'
 
-const TABS = [['incident', 'Incident console'], ['ask', 'Company brain'], ['memory', 'Agent memory'], ['proof', 'Proof']]
+const KEY = 'traceback.ws.v1'
+const readIds = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]') } catch { return [] } }
+
+/** Workspaces this browser created: ids in localStorage, details from the server (which never lists other people's). */
+function useWorkspaces() {
+  const [ids, setIds] = useState(readIds)
+  const [list, setList] = useState([])
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(ids)) } catch { /* ignore */ } }, [ids])
+  const refresh = useCallback(() => api.wsList(ids).then((l) => { setList(l); setIds((cur) => cur.filter((i) => l.some((w) => w.id === i))) }).catch(() => {}), [ids.join(',')])
+  useEffect(() => { refresh() }, [refresh])
+  const busy = list.some((w) => w.status === 'queued' || w.status === 'running')
+  useEffect(() => { if (!busy) return undefined; const t = setInterval(refresh, 1000); return () => clearInterval(t) }, [busy, refresh])
+  return {
+    workspaces: list,
+    addWorkspace: (w) => { setList((l) => [w, ...l.filter((x) => x.id !== w.id)]); setIds((c) => [w.id, ...c.filter((i) => i !== w.id)]) },
+    removeWorkspace: (id) => { setList((l) => l.filter((w) => w.id !== id)); setIds((c) => c.filter((i) => i !== id)) },
+  }
+}
+
+const NAV = [['investigate', 'search', 'Investigate'], ['ask', 'message', 'Company brain'], ['memory', 'database', 'Agent memory'], ['lab', 'github', 'Analyze your code'], ['proof', 'chart', 'Proof'], ['method', 'book', 'Method']]
+const TITLES = { investigate: 'Investigate', ask: 'Company brain', memory: 'Agent memory', lab: 'Analyze your code', proof: 'Proof', method: 'Method' }
 
 export default function App() {
+  const route = useRoute()
+  const theme = useTheme()
   const [health, setHealth] = useState(null)
   const [tenant, setTenant] = useState('helix')
   const [graphOn, setGraphOn] = useState(true)
-  const [tab, setTab] = useState('incident')
-  const [alerts, setAlerts] = useState([])
-  const [activeAlert, setActiveAlert] = useState(null)
-  const [run, setRun] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const [memKey, setMemKey] = useState(0)
   const [llm, setLlm] = useState(loadLLM)
   const [llmOpen, setLlmOpen] = useState(false)
+  const [memKey, setMemKey] = useState(0)
+  const [menu, setMenu] = useState(false)
+  const wsApi = useWorkspaces()
+
+  useEffect(() => { api.health().then(setHealth).catch(() => setHealth({ ok: false })) }, [])
+  useEffect(() => { setMenu(false) }, [route.path])
+  useEffect(() => { if (isRepo(tenant) && !wsApi.workspaces.some((w) => w.tenant === tenant && w.status === 'ready') && wsApi.workspaces.length) setTenant('helix') }, [wsApi.workspaces])
+
   const userKeys = llm.configs.filter((c) => c.api_key)
-  // true: use my keys · null: let the server decide (its own keys, else offline) · false: never call an LLM
   const useLlm = !llm.enabled ? false : userKeys.length ? true : null
+  const ctx = useMemo(() => ({ tenant, setTenant, graphOn, useLlm, userKeys, memKey, bumpMemory: () => setMemKey((k) => k + 1), ...wsApi, theme }),
+    [tenant, graphOn, useLlm, llm, memKey, wsApi.workspaces, theme.dark])
 
-  useEffect(() => { api.health().then(setHealth).catch((e) => setErr(String(e))) }, [])
-  useEffect(() => { setRun(null); api.alerts(tenant).then((a) => { setAlerts(a); setActiveAlert(a.sort((x, y) => x.id.localeCompare(y.id))[0]?.id) }).catch((e) => setErr(String(e))) }, [tenant])
+  if (route.path === '/' || route.path === '') return <AppCtx.Provider value={ctx}><Landing theme={theme} /></AppCtx.Provider>
 
-  const go = async (id = activeAlert) => {
-    if (!id) return
-    setBusy(true); setErr(''); setActiveAlert(id)
-    try { setRun(await api.run({ tenant, alert_id: id, graph_enabled: graphOn, use_llm: useLlm }, userKeys)); setMemKey((k) => k + 1) } catch (e) { setErr(String(e)) }
-    setBusy(false)
-  }
+  const page = (route.path.split('/')[2] || 'investigate')
+  const ready = wsApi.workspaces.filter((w) => w.status === 'ready')
+  const llmLabel = !llm.enabled ? 'LLM off' : userKeys.length ? `${userKeys.length} key${userKeys.length > 1 ? 's' : ''}` : health?.llm ? 'server keys' : 'offline planner'
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
-          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="24" r="4" fill="#2dd4bf" /><circle cx="24" cy="8" r="4" fill="#60a5fa" /><path d="M8 24 L24 8" stroke="#e2e8f0" strokeWidth="2" /></svg>
-          TRACEBACK <small>the agent that can't say anything it can't trace</small>
-        </div>
-        <div className="spacer" />
-        <label className="muted">Tenant&nbsp;
-          <select value={tenant} onChange={(e) => setTenant(e.target.value)}>{(health?.tenants || ['helix', 'orbit']).map((t) => <option key={t}>{t}</option>)}</select>
-        </label>
-        <button className={`switch ${graphOn ? '' : 'off'}`} onClick={() => setGraphOn(!graphOn)} title="Kill the graph: the product falls back to docs-only retrieval">
-          <span className="dot" /> FalkorDB graph: {graphOn ? 'ON' : 'OFF'}
-        </button>
-        <button className="switch" onClick={() => setLlmOpen(true)} title="Bring your own API keys; automatic failover between providers">
-          LLM: {!llm.enabled ? 'off' : userKeys.length ? `${userKeys.length} key${userKeys.length > 1 ? 's' : ''}` : health?.llm ? 'server keys' : 'offline planner'} ⚙
-        </button>
-        <Pill kind={health?.ok ? 'ok' : 'bad'}>{health?.ok ? 'FalkorDB connected' : 'FalkorDB down'}</Pill>
-      </header>
-
-      <main className="layout">
-        <aside>
-          <div className="card">
-            <h3>Live alerts · {tenant}</h3>
-            {alerts.map((a) => (
-              <button key={a.id} className={`alert ${activeAlert === a.id ? 'active' : ''}`} onClick={() => setActiveAlert(a.id)}>
-                <b>{a.service}</b>
-                <span className="muted mono">{a.id}</span>
-                <div className="row" style={{ marginTop: 4 }}>
-                  <Pill kind={a.severity === 1 ? 'bad' : 'warn'}>sev {a.severity}</Pill><Pill>{a.signal}</Pill><Pill>tier {a.tier}</Pill>
-                </div>
-              </button>
-            ))}
-            <button className="btn" style={{ width: '100%', marginTop: 4 }} disabled={busy || !activeAlert} onClick={() => { setTab('incident'); go() }}>
-              {busy ? 'Crew working…' : 'Run the crew'}
-            </button>
-            {err && <div className="banner" style={{ marginTop: 10, fontSize: 12 }}>{err}</div>}
+    <AppCtx.Provider value={ctx}>
+      <div className="shell">
+        <aside className={`sidebar ${menu ? 'open' : ''}`}>
+          <a href="#/" style={{ textDecoration: 'none' }}><Logo /></a>
+          <div className="ws-switch">
+            <label htmlFor="ws">Dataset</label>
+            <select id="ws" value={tenant} onChange={(e) => setTenant(e.target.value)}>
+              <optgroup label="Demo company (synthetic)">{(health?.tenants || ['helix', 'orbit']).map((t) => <option key={t} value={t}>{t}</option>)}</optgroup>
+              {ready.length > 0 && <optgroup label="Your repositories">{ready.map((w) => <option key={w.id} value={w.tenant}>{w.label}</option>)}</optgroup>}
+            </select>
           </div>
-          <div className="card muted" style={{ fontSize: 12 }}>
-            <b style={{ color: 'var(--text)' }}>How to read this</b>
-            <p>Every claim lists graph edge ids. A verifier re-queries FalkorDB and withholds anything it can't confirm. Flip the switch above to see the product without its graph.</p>
+          <nav className="nav">
+            {NAV.map(([k, ic, l]) => <a key={k} href={`#/app/${k}`} className={page === k ? 'active' : ''}><Icon name={ic} size={16} />{l}</a>)}
+            <div className="sep" /><small>Elsewhere</small>
+            <a href="#/"><Icon name="target" size={16} />Overview</a>
+          </nav>
+          <div className="side-foot">
+            <button className="btn ghost sm" onClick={() => setLlmOpen(true)}><Icon name="key" size={14} />LLM: {llmLabel}</button>
+            <button className="btn quiet sm" onClick={theme.toggle}><Icon name={theme.dark ? 'sun' : 'moon'} size={14} />{theme.dark ? 'Light' : 'Dark'} theme</button>
           </div>
         </aside>
-
-        <section>
-          <nav className="tabs">{TABS.map(([k, label]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{label}</button>)}</nav>
-          {tab === 'incident' && <IncidentView tenant={tenant} run={run} onApproved={() => go()} />}
-          {tab === 'ask' && <AskView tenant={tenant} graphOn={graphOn} useLlm={useLlm} keys={userKeys} />}
-          {tab === 'memory' && <MemoryView tenant={tenant} refreshKey={memKey} />}
-          {tab === 'proof' && <ProofView />}
-        </section>
-      </main>
-      <LLMSettings open={llmOpen} onClose={() => setLlmOpen(false)} llm={llm} setLlm={setLlm} />
-    </div>
+        <div className="main">
+          <header className="topbar">
+            <button className="btn quiet icon menu-btn" onClick={() => setMenu(!menu)} aria-label="Menu"><Icon name="menu" /></button>
+            <h1>{TITLES[page] || 'Console'}</h1><span className="crumb hide-sm">· {isRepo(tenant) ? (wsApi.workspaces.find((w) => w.tenant === tenant)?.label || 'repository') : `${tenant} (synthetic)`}</span>
+            <span className="spacer" />
+            <button className={`switch ${graphOn ? '' : 'off'}`} onClick={() => setGraphOn(!graphOn)} title="Kill the graph: the product falls back to documents-only retrieval">
+              <span className="dot" />FalkorDB graph {graphOn ? 'on' : 'off'}
+            </button>
+            <Pill kind={health?.ok ? 'ok' : 'bad'}>{health?.ok ? 'connected' : 'FalkorDB down'}</Pill>
+          </header>
+          <main className="page">
+            {page === 'investigate' && <Investigate />}
+            {page === 'ask' && <AskPage />}
+            {page === 'memory' && <MemoryPage />}
+            {page === 'lab' && <Lab query={route.query} />}
+            {page === 'proof' && <ProofPage />}
+            {page === 'method' && <Method />}
+          </main>
+        </div>
+        <LLMSettings open={llmOpen} onClose={() => setLlmOpen(false)} llm={llm} setLlm={setLlm} />
+      </div>
+    </AppCtx.Provider>
   )
 }

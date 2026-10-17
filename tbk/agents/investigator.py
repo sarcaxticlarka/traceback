@@ -23,7 +23,7 @@ def _rows(results: list[ToolResult], tool: str, **match) -> list[dict]:
 
 def build_finding(ctx: ToolContext, goal: Goal, results: list[ToolResult], service: str, signal: str) -> dict:
     changes = _rows(results, "recent_changes")
-    suspect = pick_suspect(changes, ctx.at)
+    suspect = pick_suspect(changes, ctx.at, goal.window_hours)
     target = suspect["service"] if suspect else service
     owner = (_rows(results, "owners_of", service=target) or [{}])[0]
     experts = _rows(results, "who_knows", service=target)
@@ -47,11 +47,12 @@ def headline(f: dict) -> str:
         return (f"No deploy to {f['service']} or its dependencies in the last 24h. "
                 f"Blast radius: {f['blast_size']} service(s).")
     age_h = (f["at"] - s["ts"]) / 3600
+    age = f"{age_h:.1f}h" if age_h < 72 else f"{age_h / 24:.0f} days"
     where = "to the alerting service" if s["hops"] == 0 else f"{s['hops']} dependency hop(s) away"
     page = f" Page {f['experts'][0]['person']}." if f["experts"] else ""
     owner = f" Owner: team {f['owner_team']}." if f["owner_team"] else ""
     return (f"Likely cause: deploy {s['sha']} to {s['service']} by {s['author']} at {fmt_ts(s['ts'])} "
-            f"({age_h:.1f}h before the alert, {where}).{owner}{page} Blast radius: {f['blast_size']} service(s).")
+            f"({age} before the alert, {where}).{owner}{page} Blast radius: {f['blast_size']} service(s).")
 
 
 def run_investigator(ctx: ToolContext, goal: Goal, *, task_id: str | None = None, incident_id: str | None = None,

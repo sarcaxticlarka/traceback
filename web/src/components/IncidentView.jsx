@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import GraphView from './GraphView'
-import { Bar, GroundedBadge, Pill, fmtTs } from './Common'
+import { Bar, Empty, GroundedBadge, Pill, fmtTs } from './Common'
 import { LLMBadge } from './LLMSettings'
+import EvidenceDrawer from './EvidenceDrawer'
+import Icon from './ui/Icon'
 
 const AGENT_COLOR = { triage: 'blue', investigator: 'ok', remediator: 'warn' }
 
-function Claims({ claims, selected, onSelect }) {
+function Claims({ claims, selected, onSelect, onEvidence }) {
   return (
     <div className="scroll">
       {claims.map((c, i) => (
@@ -18,6 +20,7 @@ function Claims({ claims, selected, onSelect }) {
               ? <Pill kind="ok">grounded · {(c.edge_ids?.length || 0) + (c.ended_edge_ids?.length || 0)} edge(s){c.node_ids?.length ? ` · ${c.node_ids.length} node(s)` : ''}</Pill>
               : <Pill kind="bad">withheld</Pill>}
             <span className="muted mono">{c.tool}</span>
+            <button className="btn quiet sm" style={{ marginLeft: 'auto' }} onClick={(e) => { e.stopPropagation(); onEvidence(c) }}><Icon name="eye" size={13} /> Why</button>
           </div>
           {c.status !== 'grounded' && <div className="mono" style={{ color: 'var(--bad)', marginTop: 4 }}>{c.reason}</div>}
         </div>
@@ -59,6 +62,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
   const [sel, setSel] = useState(null)
   const [replayKey, setReplayKey] = useState(0)
   const [probe, setProbe] = useState(null)
+  const [drawer, setDrawer] = useState(null)
 
   const claims = useMemo(() => (run ? run.agents.flatMap((a) => (a.verification?.claims || []).map((c) => ({ ...c, agent: a.agent }))) : []), [run])
   // draw exactly the evidence the verified claims cite, in the order the agents produced them
@@ -79,7 +83,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
     setReplayKey((k) => k + 1)
   }, [run?.run_id])
 
-  if (!run) return <div className="card empty">Pick an alert on the left and run the crew.<br />Every sentence the agents produce will carry the graph edges that back it.</div>
+  if (!run) return <div className="card"><Empty icon="route">Pick an alert and run the crew.<br />Every sentence the agents produce will carry the graph edges that back it.</Empty></div>
   const highlight = sel != null ? new Set([...(claims[sel].edge_ids || []), ...(claims[sel].ended_edge_ids || [])]) : null
 
   const inject = async () => {
@@ -99,6 +103,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
 
   return (
     <div>
+      {drawer && <EvidenceDrawer tenant={tenant} claim={drawer} onClose={() => setDrawer(null)} />}
       {!run.graph_enabled && <div className="banner"><b>Graph layer is OFF.</b> The product falls back to document retrieval only: no dependency scope, no ownership, no handoffs, no verifiable claims. This is rule 3 as an experiment.</div>}
       <div className="card">
         <div className="headline">{run.headline || run.error}</div>
@@ -135,7 +140,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
         </div>
         <div className="card">
           <h3>Claims · click one to light up its edges</h3>
-          {claims.length ? <Claims claims={claims} selected={sel} onSelect={(i) => setSel(sel === i ? null : i)} />
+          {claims.length ? <Claims claims={claims} selected={sel} onSelect={(i) => setSel(sel === i ? null : i)} onEvidence={setDrawer} />
             : <div className="empty">No claims (graph disabled).</div>}
         </div>
       </div>

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .config import NOW
+from . import workspaces as W
 from .tools import ToolContext
 from .tools.common import edge_facts
 
@@ -17,7 +18,7 @@ def _node_rows(ctx: ToolContext, ids: list[str]) -> dict[str, dict]:
 
 
 def evidence_subgraph(tenant: str, edge_ids: list[int], node_ids: list[str] | None = None) -> dict:
-    ctx = ToolContext(tenant, NOW)
+    ctx = ToolContext(tenant, W.tenant_now(tenant))
     facts = edge_facts(ctx, sorted(set(edge_ids)))
     ids = {f["aid"] for f in facts.values()} | {f["bid"] for f in facts.values()} | set(node_ids or [])
     nodes = _node_rows(ctx, sorted(ids))
@@ -29,7 +30,8 @@ def evidence_subgraph(tenant: str, edge_ids: list[int], node_ids: list[str] | No
     }
 
 
-def service_map(tenant: str, at: int = NOW) -> dict:
+def service_map(tenant: str, at: int | None = None) -> dict:
+    at = at or W.tenant_now(tenant)
     ctx = ToolContext(tenant, at)
     nodes = ctx.q("MATCH (s:Service) RETURN s.id AS id, s.name AS name, s.tier AS tier, s.layer AS layer, "
                   "coalesce(s.pr_score, 0.0) AS pr")
@@ -39,7 +41,7 @@ def service_map(tenant: str, at: int = NOW) -> dict:
 
 
 def overview(tenant: str) -> dict:
-    ctx = ToolContext(tenant, NOW)
+    ctx = ToolContext(tenant, W.tenant_now(tenant))
     counts = ctx.q("MATCH (n) RETURN labels(n)[0] AS label, count(n) AS n ORDER BY n DESC")
     edges = ctx.q("MATCH ()-[r]->() RETURN count(r) AS n")[0]["n"]
     types = ctx.q("MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS n ORDER BY n DESC")

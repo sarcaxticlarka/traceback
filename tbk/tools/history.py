@@ -5,6 +5,7 @@ from ..embeddings import embed
 from .base import Claim, ToolContext, ToolResult, tool
 from .common import fmt_day
 from .topology import sid
+from .walk import walk
 
 
 @tool("similar_incidents",
@@ -14,9 +15,8 @@ from .topology import sid
       ["service"], cypher_ref="Q4 similar_incidents (vector + traversal)")
 def similar_incidents(ctx: ToolContext, service: str, signal: str = "", top: int = 4) -> ToolResult:
     name = service.replace("svc:", "")
-    scope = ctx.q("MATCH (s:Service {id:$sid}) OPTIONAL MATCH (s)-[:DEPENDS_ON*0..2]-(x:Service) "
-                  "RETURN collect(DISTINCT x.id) AS ids", {"sid": sid(service)})
-    scope_ids = (scope[0]["ids"] if scope else []) or [sid(service)]
+    scope_ids = list(set(walk(ctx, sid(service), direction="out", depth=2)) | set(walk(ctx, sid(service), direction="in", depth=2))) \
+        or [sid(service)]
     qvec = embed(f"{signal} on {name}")
     # vector index + property filters combine poorly in FalkorDB, so retrieve first, then traverse
     rows = ctx.q("CALL db.idx.vector.queryNodes('Incident','embedding',40,vecf32($v)) YIELD node, score "

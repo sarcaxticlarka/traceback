@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Bar, LineChart, Pill, fmtTs } from './Common'
 
-export default function MemoryView({ tenant, refreshKey }) {
+export default function MemoryView({ tenant, refreshKey, repo = false }) {
   const [runbooks, setRunbooks] = useState([])
   const [facts, setFacts] = useState([])
   const [episodes, setEpisodes] = useState([])
@@ -21,7 +21,8 @@ export default function MemoryView({ tenant, refreshKey }) {
 
   return (
     <div>
-      <div className="card">
+      {repo && <div className="banner info">Runbooks (procedural memory) apply to operations data with remediation history. For a repository workspace you will see episodes and facts the crew writes as it investigates.</div>}
+      {!repo && <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h3 style={{ margin: 0 }}>Procedural memory learns · runbook choice vs. incidents handled</h3>
           <button className="btn" onClick={simulate} disabled={busy}>{busy ? 'Simulating…' : 'Cold-start & re-learn (240 incidents × 5 seeds)'}</button>
@@ -33,10 +34,10 @@ export default function MemoryView({ tenant, refreshKey }) {
               { name: 'incident resolved', color: '#60a5fa', points: curve.curve.map((c) => ({ x: c.incidents, y: c.success_rate })) }]}
             refs={[{ y: curve.expected_success_best, label: 'always-best policy', color: '#34d399' }, { y: curve.expected_success_random, label: 'random policy', color: '#f87171' }]} />
         ) : <div className="empty">Run the simulation to draw the learning curve.</div>}
-      </div>
+      </div>}
 
       <div className="grid2" style={{ marginTop: 12 }}>
-        <div className="card">
+        {!repo && <div className="card">
           <h3>Runbooks (procedural)</h3>
           <div className="scroll"><table><thead><tr><th>Signal / runbook</th><th>Record</th><th>Rate</th></tr></thead><tbody>
             {Object.entries(bySignal).map(([sig, rbs]) => rbs.map((r, i) => (
@@ -45,7 +46,7 @@ export default function MemoryView({ tenant, refreshKey }) {
                 <td style={{ width: 110 }}><Bar value={(r.successes + 1) / (r.attempts + 2)} /></td></tr>
             )))}
           </tbody></table></div>
-        </div>
+        </div>}
         <div>
           <div className="card">
             <h3>Semantic memory · facts with validity windows</h3>

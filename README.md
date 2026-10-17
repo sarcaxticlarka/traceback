@@ -1,253 +1,197 @@
 # TRACEBACK
 
-**An incident-response agent crew that can't say anything it can't trace.**
+**Answers you can trace.** AI agents that investigate incidents and codebases over a graph, and refuse to say anything
+they can't prove.
 
-TRACEBACK investigates production alerts with a team of AI agents. All the context the agents need (services and
-their dependencies, who owns what, deploys, past incidents, runbooks, documents, decisions) lives in a **FalkorDB
-graph database**. The agents' memory and the way they hand work to each other also live in that graph. Every
-statement the system makes cites the exact graph edges that support it, and a verifier re-checks those edges against
-the database and **withholds any claim it cannot confirm**.
+TRACEBACK builds a **FalkorDB graph** from real sources (a GitHub repository, an uploaded folder, or your service
+catalogue) and lets agents walk it: who depends on this module, who owns it, which change broke it, who should review
+the fix. Every statement the system makes cites the exact graph edges behind it; a verifier re-queries the database
+and **withholds any claim it cannot confirm**.
 
-![console](docs/screenshot-incident.jpg)
+![landing](docs/screens/landing.jpg)
 
-## Is FalkorDB actually used?
+## Try it on your own code
 
-Yes. It is the system of record, not a decoration:
+```bash
+make db seed web api          # then open http://localhost:8765
+```
 
-| What | How FalkorDB is used |
+Paste `https://github.com/owner/repo` on the landing page (or **Analyze your code** in the console). In seconds you get:
+
+| | |
 |---|---|
-| Company knowledge | Services, teams, people, deploys, alerts, incidents, documents, decisions are nodes; ownership, dependencies, authorship, causality are edges (with validity windows) |
-| Every agent tool | 17 tools, each a Cypher query or graph algorithm (`algo.pageRank`, `algo.betweenness`, variable-length path traversals, vector search) |
-| Agent memory | Episodes, tool calls, facts and runbook statistics are written back as nodes/properties |
-| Multi-agent coordination | Agents communicate only through `Task` and `Finding` nodes; tasks are claimed with an atomic conditional `SET` |
-| Verification | The verifier re-queries the graph by edge id to confirm each claim |
-| Multi-tenancy | One graph per tenant (`t_helix`, `t_orbit`) inside one FalkorDB instance |
+| **Dependency map** | Real import graph (Python, JS/TS, Go, Java/Kotlin, C/C++), grouped into modules, sized by how many modules depend on each |
+| **Hotspots** | Lines changed in the last 90 days × direct dependents: where changes hurt most |
+| **Bus factor** | Modules where one person wrote most of the commits |
+| **Change impact** | Pick a commit: what depends on it, who owns it, who should review it, a PR-ready markdown comment |
+| **Ask** | "Which modules import `src/api/` directly?", "Who made the most commits to `lib/`?", full blast radius, ... |
+| **Investigate** | The three-agent crew traces a reported regression to the likely commit, owner and reviewers |
+| **Benchmark** | Auto-generated questions about *your* repo, graph agent vs a documents-only baseline |
 
-Proof that it's necessary, not just present: the console has a **FalkorDB graph ON/OFF** switch. With it off, the
-system falls back to plain document retrieval and can no longer scope changes by dependency, find owners, hand off
-work, or produce any verifiable claim (0% grounded). See [Results](#results) for the measured gap.
+Sources: **GitHub URL** (public repos, read-only shallow clone), **folder / zip** upload (no `.git` is read), or a **JSON
+bundle** exported from your service catalogue, deploy tool and pager. Details, privacy and the CI recipe:
+[docs/REAL_WORLD.md](docs/REAL_WORLD.md).
 
-## What it does
+![analyze](docs/screens/analyze-overview.jpg)
 
-When an alert fires, three agents run in sequence, coordinated through the graph:
+From the terminal or CI:
 
-1. **Triage** sizes up the alert (how many services depend on the failing one, how critical it is), opens an
-   incident, and creates the work items.
-2. **Investigator** walks the dependency graph to find the likely cause (a recent deploy to the alerting service or
-   anything it depends on), the team that owns the culprit, the people who know it best, similar past incidents, and
-   decisions that constrain it. It produces claims, and the verifier checks each one.
-3. **Remediator** reads the Investigator's finding from the graph, picks the runbook with the best learned track
-   record, proposes actions (page the expert, roll back the deploy, apply the runbook), gates risky ones behind human
-   approval, and records the outcome so the next incident benefits.
+```bash
+python -m tbk.cli analyze https://github.com/pallets/click      # hotspots, bus factor, criticality (verified)
+python -m tbk.cli impact . --base origin/main --head HEAD       # markdown PR comment with reviewers and risk
+```
 
-Besides incidents, a **Company brain** view answers natural-language questions about the organisation
-("Which teams own services that would be impacted if auth-service fails?") with sourced, verified answers.
+## Where the data comes from, and how claims are made
+
+Nothing is taken on trust. Each relationship records **why it exists**:
+
+| Edge | Created from | Provenance stored on the edge |
+|---|---|---|
+| `DEPENDS_ON` (module → module) | Static analysis of import statements | Up to 3 import sites as `file:line → file`, plus an import count |
+| `AUTHORED`, `DEPLOYED_TO` (person → commit → module) | `git log --numstat` | `basis: git`, lines changed |
+| `OWNS` (team → module) | `CODEOWNERS` (last matching rule wins); else top committer | The rule text, or `basis: top-committer` |
+| `MEMBER_OF` | Inferred from who contributed to the modules a team owns | `basis: contributed-to-owned-modules` |
+| `SUPERSEDES` (decision → decision) | "Supersedes ADR 0003" in ADR files | Link to the source document |
+
+A **claim** is a sentence generated by a tool from those edges plus the edge ids. The verifier accepts it only if the
+edges exist in this tenant's graph, were valid at that time, asserted properties still match, **and every entity named
+in the text is an endpoint of the cited evidence** (so a model can't add "and billing-api is also down"). In the console
+click **Why** on any claim to see each edge's basis: the import lines, the ownership rule, the commit. Grounded % counts
+rejected claims against the score. Full write-up: the in-app **Method** page.
+
+## Measured, not claimed
+
+Same questions to the graph agent and to a **documents-only baseline** (hybrid dense + TF-IDF retrieval of 8 chunks, plus a
+reader that parses the imports/ADRs/READMEs in what it retrieved) over the same material. **Ground truth comes from the
+static analyser and the raw commit list (or the generator's own model), never from the database under test.**
+
+**Real repositories**: cloned fresh, analysed, loaded and quizzed (`make bench-real`, [docs/BENCH_REAL.md](docs/BENCH_REAL.md)):
+
+| Repository | Files | Modules | Module deps | Commits | Questions | Graph | Docs-only | Grounded |
+|---|---|---|---|---|---|---|---|---|
+| pallets/click (Python) | 91 | 18 | 17 | 1,353 | 16 | 100% | 25% | 100% |
+| psf/requests (Python) | 37 | 6 | 3 | 1,435 | 10 | 100% | 0% | 100% |
+| expressjs/express (JS) | 141 | 38 | 29 | 1,445 | 26 | 100% | 27% | 100% |
+| spf13/cobra (Go) | 36 | 2 | 1 | 964 | 3 | 100% | 0% | 100% |
+| gin-gonic/gin (Go) | 99 | 8 | 15 | 1,375 | 25 | 100% | 0% | 100% |
+| tiangolo/fastapi (Python) | 1,172 | 97 | 160 | 619 | 30 | 100% | 10% | 100% |
+| **All** | | | | | **110** | **100%** | **13%** | **100%** |
+
+**Demo company** (synthetic, 96 questions, [docs/EVAL.md](docs/EVAL.md)): 1-hop 100% vs 89%, 2-hop 100% vs 29%, as-of 100% vs 86%,
+3+ hops 100% vs 10%.
+
+**Concurrency** ([docs/BENCH.md](docs/BENCH.md)): 40 full agent crews at once, ~19 incidents/s, all fully grounded, 0 errors; 100 workers racing
+for one task produce exactly one winner. **Isolation**: a canary planted in one tenant is invisible to another.
+
+How to read the 100%: it shows the Cypher tools reproduce an independently computed model of the data. The benchmark already
+caught two real bugs (look-alike git author names collapsing into one person; path enumeration semantics on cyclic import
+graphs), both fixed. The baseline's low scores come from seeing only 8 chunks; a long-context model reading a small repo would
+narrow the gap on direct lookups, but cannot show its work and slows as repos grow.
+
+![proof](docs/screens/proof.jpg)
+
+## What the AI does (and doesn't)
+
+The system works with **no model at all**. Everything below is deterministic code:
+
+- parsing and ingest, graph construction, every Cypher query and FalkorDB algorithm,
+- ranking (suspect scoring, hotspots, runbook success rates, risk), verification, and the benchmarks.
+
+An **optional LLM** (your own keys; Anthropic natively or any OpenAI-compatible API: OpenAI, Gemini, Groq, OpenRouter,
+Mistral, DeepSeek, local Ollama) has three narrow jobs: choose which tool to call next, answer free-form questions by
+calling the same tools, and polish claim wording, after which the verifier rejects any added entity. It never decides what
+is *true*, and it receives tool results (module names, authors, commit subjects, short doc snippets), not your source files.
+
+**Bring your own keys, with failover.** Add several providers in the console (**LLM** button); if one hits a rate limit, runs
+out of quota, is overloaded or rejects the key, the next takes over mid-investigation and the UI shows which answered. Keys
+travel per request, are never stored or logged server-side, and live in the browser only if you tick "remember".
 
 ## Features
 
-### Incident investigation
-- **Dependency-scoped root cause:** deploys are considered only if they hit the alerting service or something it
-  depends on (up to 2 hops), ranked by proximity and recency. A "latest deploy anywhere" heuristic gets this wrong.
-- **Blast radius and impacted teams:** transitive dependents of any service, and the teams that own them.
-- **Expert finding:** people ranked by deploys authored plus incidents resolved on a service, restricted to people who
-  are still on a team.
-- **Similar incidents:** hybrid vector similarity + graph proximity (affected service within 2 hops).
-- **Criticality and chokepoints:** PageRank and betweenness centrality over the dependency graph.
-- **Orphaned ownership:** services owned by a team with nobody left.
+- **Investigations** (Triage → Investigator → Remediator) handing work through `Task`/`Finding` nodes with atomic claims; risk-gated actions with human approval; outcomes written back as episodic, semantic (facts with validity windows that supersede each other) and procedural (runbook statistics) memory.
+- **Company brain**: natural-language questions routed to graph tools; time-aware (ownership, membership, dependencies, facts have validity windows).
+- **Cycle-safe traversal**: blast radius, dependency paths and impacted teams use level-by-level expansion, so cyclic and dense real import graphs stay fast.
+- **Multi-tenant**: one graph per tenant (demo companies and each upload), isolation proven by a canary test.
+- **MCP server**: all 21 tools for Claude Desktop, Cursor or your own agent, each response carrying its verification.
+- **Safe ingestion**: nothing is executed; zip-slip, symlinks, size bombs, `.git` in uploads, malformed URLs are rejected; per-address rate limit; workspaces deleted after 12 hours.
+- **Kill switch**: a header toggle disables the graph so you can see the product without it (0% verifiable).
 
-### Proof-carrying answers ("no path, no claim")
-- Every claim lists the graph edge ids behind it.
-- The verifier accepts a claim only if the edges exist, were valid at that time, cited nodes exist with matching
-  properties, **and every entity named in the text is an endpoint of the cited evidence** (so a language model cannot
-  slip an ungrounded name into a grounded sentence).
-- The console shows a *Grounded %* badge, replays the evidence subgraph the agents traversed, highlights a claim's
-  edges when clicked, and has an **Inject hallucination** button that shows fabricated claims being withheld with
-  reasons.
+## Technology
 
-### Agent memory (all stored in the graph)
-- **Episodic:** each agent run is an `Episode` with its `ToolCall`s, outcome and latency.
-- **Semantic:** `Fact` nodes with validity windows; a new fact on the same topic closes the old one and links
-  `SUPERSEDES`, so knowledge is updated, not overwritten. Time-travel queries ask "what was true on date X".
-- **Procedural:** `Runbook` nodes carry attempt/success counters; ranking is a Cypher query over them. Outcomes are
-  written back after each incident, so runbook choice improves over time (a learning curve is drawn in the console).
-
-### Multi-agent coordination
-- Task graph with dependencies (`BLOCKED_BY`), priorities, and findings (`PRODUCED`).
-- Atomic claim: 100 workers racing for one task produce exactly one winner.
-- Risk-scored actions (blast radius, tier, orphaned ownership) with a human-approval gate.
-
-### Company brain
-- Natural-language questions are routed to graph tools (rule-based intent parser; an LLM planner is optional) and
-  answered with verified claims, shown side by side with a documents-only baseline.
-- Time-aware: ownership, membership, dependencies and facts have validity windows, so stale documents lose to the graph.
-
-### Operations
-- **Tenant isolation:** separate graph per tenant; a canary test proves one tenant never sees the other's data even
-  when service names overlap.
-- **Concurrency:** client-side admission control and retry against FalkorDB's queue limit; benchmark included.
-- **MCP server:** every tool is available to any MCP client (Claude Desktop, Cursor, custom agents).
-- **Optional LLM, any provider, bring your own key:** the Investigator can plan with an LLM's tool-use loop, free-form
-  company questions can be answered by an LLM that calls the graph tools, and claim text can be polished. Supported:
-  **Anthropic (Claude)** natively and any **OpenAI-compatible** API (OpenAI, Google Gemini, Groq, OpenRouter, Mistral,
-  DeepSeek, or a local server such as Ollama). The verifier still gates every sentence, so a model can't add facts.
-  Without any key a deterministic playbook runs (fully offline).
-- **Automatic failover between providers:** users add one or more provider keys in the console (⚙ in the header),
-  ordered by priority. If a provider hits a rate limit, runs out of quota, is overloaded, times out, or rejects the
-  key, the next one takes over **mid-investigation** (the conversation is kept in a provider-neutral format) and the
-  console shows which provider answered and why it switched. A limited provider is skipped for a cool-down period.
-- **Keys stay with the user:** keys are sent per request in a header, used for that request only, never stored or
-  logged by the server, and scrubbed from error messages. They are kept in the browser only if the user ticks
-  "remember". Preset providers use fixed URLs, so the UI cannot be used to make the server call arbitrary hosts.
-
-## Technology stack
-
-| Technology | Role in the project |
+| Technology | Role |
 |---|---|
-| **FalkorDB** (graph database, Redis protocol) | Stores all knowledge, memory and coordination state; runs traversals, vector search and graph algorithms |
-| **Cypher** (OpenCypher subset) | Query language for every tool; see [QUERIES.md](QUERIES.md) |
-| **FalkorDB vector index** | Cosine similarity over document and incident embeddings (`db.idx.vector.queryNodes`) |
-| **FalkorDB algorithms** | `algo.pageRank` for criticality, `algo.betweenness` for single points of failure |
-| **Python 3.11+** | Backend, agents, tools, verifier, evaluation |
-| **`falkordb` Python client** (on redis-py) | Talks to FalkorDB; wrapped by `tbk/graph.py` for tenant routing and admission control |
-| **FastAPI + Uvicorn + Pydantic** | HTTP API and static hosting of the console |
-| **NumPy** | Dense/sparse retrieval math for the documents-only baseline |
-| **MCP Python SDK** | Exposes the graph tools to MCP clients (stdio or streamable HTTP) |
-| **Anthropic SDK** (optional) | Claude provider (tool use) |
-| **httpx** (optional) | OpenAI-compatible provider adapter (OpenAI, Gemini, Groq, OpenRouter, Mistral, DeepSeek, custom) |
-| **Hashed text embeddings** (local) | Deterministic 256-dim embeddings; no network or API key needed |
-| **React 18 + Vite** | Incident console |
-| **d3-force** | Layout for the evidence-graph view (rendering is plain SVG) |
-| **Docker / Docker Compose** | Runs FalkorDB and the app together |
-| **pytest** | 52 tests: verifier, agents, isolation, MCP, LLM providers and failover, evaluation |
+| **FalkorDB** (Redis protocol) | The system of record: knowledge, memory, coordination state; traversals, vector search, `algo.pageRank`, `algo.betweenness` |
+| **Cypher** | Every tool is a query; see [QUERIES.md](QUERIES.md) (generated from the code that runs them) |
+| **Python 3.11+**, `falkordb` client | Backend, ingestion, agents, verifier, evaluation; `graph.py` adds tenant routing and admission control against FalkorDB's queue limit |
+| **FastAPI / Uvicorn / Pydantic** | HTTP API (+ multipart uploads), static hosting of the console |
+| **Static analysis**: `ast`, resolvers for JS/TS, Go, Java/Kotlin, C/C++ | Module graph with import sites |
+| **git** (read-only) | History, authors, churn |
+| **MCP Python SDK** | Tool server for MCP clients |
+| **Anthropic SDK, httpx** (optional) | Claude and OpenAI-compatible providers with failover |
+| **NumPy** | Dense/sparse retrieval for the documents-only baseline |
+| **React 18, Vite, d3-force, fflate** | Console: landing, analysis lab, evidence graph (plain SVG), in-browser folder zipping |
+| **Docker / Compose**, **pytest** (69 tests) | Packaging, verification |
 
 ## Setup
 
-Requirements: **Docker**, **Python 3.11+**, **Node 18+** (and `uv` optionally).
-
-### Option A: local development
+Requirements: Docker, Python ≥ 3.11, Node ≥ 18 (optional: `uv`).
 
 ```bash
 cd traceback
-make db        # starts FalkorDB: redis on :6390, FalkorDB Browser on http://localhost:3010
-make setup     # creates .venv, installs Python and web dependencies
-make seed      # generates the synthetic company and loads both tenants (about a second)
-make web       # builds the React console into web/dist
-make api       # serves API + console on http://localhost:8765
+make db        # FalkorDB: redis on :6390, FalkorDB Browser on http://localhost:3010
+make setup     # venv + Python deps + web deps
+make seed      # generate and load the two synthetic demo tenants (about a second)
+make web       # build the console
+make api       # API + console on http://localhost:8765
 ```
 
-Open http://localhost:8765, pick an alert, click **Run the crew**.
-
-### Option B: everything in containers
-
-```bash
-docker compose up --build      # FalkorDB + app; console on http://localhost:8765
-```
-
-### Configuration
-
-Copy `.env.example` to `.env` (all optional):
+Or everything in containers: `docker compose up --build`.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FALKORDB_HOST` / `FALKORDB_PORT` / `FALKORDB_PASSWORD` | `localhost` / `6390` / none | FalkorDB connection (a managed FalkorDB Cloud instance works too) |
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | none | Server-side default providers (tried after any keys the user supplies in the console) |
-| `TBK_LLM_MODEL` | `claude-sonnet-5-5` | Model for the server-side Anthropic key (other providers use their preset default; users can override per provider in the console) |
-| `TBK_ALLOW_CUSTOM_BASE_URL` | off | Set to `1` to let users add a "custom OpenAI-compatible" endpoint (e.g. a local Ollama). Off by default to prevent SSRF |
-| `TBK_TENANTS` | `helix,orbit` | Tenant graphs to use |
-| `TBK_MAX_INFLIGHT` | `16` | Max concurrent queries per process |
+| `FALKORDB_HOST` / `PORT` / `PASSWORD` | `localhost` / `6390` / none | FalkorDB connection (FalkorDB Cloud works) |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | none | Server-side default LLM providers (used after the user's own keys) |
+| `TBK_ALLOW_CUSTOM_BASE_URL` | off | `1` lets users add a custom OpenAI-compatible endpoint (e.g. local Ollama) |
+| `TBK_WORKSPACE_TTL_H`, `TBK_MAX_WORKSPACES`, `TBK_INGESTS_PER_HOUR` | 12 / 25 / 8 | Retention and abuse limits for uploaded workspaces |
+| `TBK_MAX_UPLOAD_MB`, `TBK_MAX_TREE_MB`, `TBK_MAX_FILES`, `TBK_MAX_COMMITS`, `TBK_CLONE_TIMEOUT` | 100 / 250 / 25000 / 1500 / 150 | Ingestion limits |
 
-### Everyday commands
+Everyday commands: `make test` · `make eval` · `make bench` · `make bench-real` · `make queries` · `make mcp` · `make cli-demo`.
 
-```bash
-make test       # run the 52 tests (needs FalkorDB up)
-make eval       # graph agent vs documents-only baseline -> docs/EVAL.md
-make bench      # concurrency benchmark -> docs/BENCH.md
-make queries    # regenerate QUERIES.md from the source
-make mcp        # MCP server over stdio
-python -m tbk.isolation   # tenant-isolation canary test
-```
-
-MCP client configuration (Claude Desktop):
+MCP client config (Claude Desktop):
 
 ```json
 { "mcpServers": { "traceback": { "command": "/ABS/PATH/traceback/.venv/bin/python",
                                   "args": ["-m", "tbk.mcp_server"], "cwd": "/ABS/PATH/traceback" } } }
 ```
 
-## Using the console
-
-| Tab | What you can do |
-|---|---|
-| **Header ⚙ LLM** | Add your own provider keys, order them for failover, test them, optionally remember them in this browser |
-| **Incident console** | Run the crew on a live alert; replay the evidence graph; click claims; inject a hallucination; approve risky actions; see tasks and what was learned |
-| **Company brain** | Ask questions in plain language; compare the graph answer with the documents-only answer |
-| **Agent memory** | See runbook statistics, facts with validity, recent episodes; re-run the learning simulation |
-| **Proof** | Accuracy by hop depth, tenant-isolation test, concurrency numbers, the query catalogue |
-
-The header has the tenant selector and the **FalkorDB graph ON/OFF** switch.
-
 ## Project layout
 
 ```
 tbk/
-  graph.py          tenant -> graph routing, admission control, retry
-  switches.py       per-request graph kill switch
-  tools/            17 graph tools (Cypher/algorithms) returning rows + evidence-bearing claims
-  verifier.py       "no path, no claim"
-  memory.py         episodes, tool calls, supersedable facts, incidents, actions
-  tasks.py          task graph, atomic claim, handoff
-  agents/           triage, investigator, remediator, company-brain Q&A, orchestrator
-  providers.py      LLM adapters (Anthropic, OpenAI-compatible), failover, per-request keys
-  llm.py            offline playbook planner and provider-agnostic LLM tool-use planner
-  seed/             deterministic synthetic company generator + bulk loader
-  evalx/            evaluation questions, baseline reader, runner
-  api/app.py        FastAPI app        mcp_server.py   MCP server
-  bench.py, isolation.py, sim.py   concurrency benchmark, tenant canary, learning simulation
-web/                React console
-tests/              pytest suite
-docs/               architecture, data model, API, evaluation, benchmark
+  ingest/        fetch (safe clone/zip), analyze (imports), history, codeowners, build (graph), bundle, pipeline
+  workspaces.py  per-upload tenants, TTL, caps, rate limit
+  tools/         21 graph tools (+ walk.py cycle-safe traversal) returning rows and evidence-bearing claims
+  verifier.py    "no path, no claim"
+  agents/        triage, investigator, remediator, company-brain Q&A, orchestrator
+  providers.py   LLM adapters (Anthropic, OpenAI-compatible), failover, per-request keys
+  llm.py         offline playbook planner and provider-agnostic LLM planner
+  memory.py, tasks.py   episodes, facts, runbook stats, task graph and handoff
+  evalx/         demo-company eval + real-repo benchmark (repo_eval.py)
+  seed/          deterministic synthetic company
+  api/app.py, mcp_server.py, cli.py
+web/src/         landing, console (investigate, ask, memory, analyze lab, proof, method), design system
+scripts/         bench_real_repos.py, gen_queries.py
+docs/            REAL_WORLD, ARCHITECTURE, DATA_MODEL, API, EVAL, BENCH, BENCH_REAL
 ```
-
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/DATA_MODEL.md](docs/DATA_MODEL.md) ·
-[docs/API.md](docs/API.md) · [QUERIES.md](QUERIES.md) (generated from the code that runs them).
-
-## Results
-
-Measured on this repository's synthetic data (96 questions over 2 tenants). Both systems read the same documents with
-the same embedder; the baseline is hybrid retrieval plus an extractive reader. Ground truth is computed from the data
-generator's own model, never read back from FalkorDB.
-
-| Relationships needed | Questions | Graph agent | Documents only |
-|---|---|---|---|
-| 1 hop | 28 | 100% | 89% |
-| 2 hops | 14 | 100% | 29% |
-| Time-travel (as-of) | 14 | 100% | 86% |
-| 3+ hops | 40 | 100% | 10% |
-| **All** | **96** | **100%** (100% grounded) | **47%** |
-
-- **Concurrency** ([docs/BENCH.md](docs/BENCH.md)): 40 full agent crews at once run at about 19 incidents/s with every
-  run fully grounded and no errors; 400 concurrent graph reads at about 340 ops/s; 100 workers racing for one task
-  produce exactly one winner.
-- **Learning:** over 240 simulated incidents (5 cold starts) the better runbook is picked 70% of the time in the first
-  20 incidents and about 86% afterwards.
-- **Isolation:** a canary planted in one tenant is invisible to the other.
-
-How to read the graph agent's 100%: it shows the Cypher tools reproduce an independently computed model of the data.
-It is a correctness check, not a claim of general reasoning ability.
 
 ## Limitations
 
-- All data is synthetic and generated deterministically (`tbk/seed/generate.py`), including the "live" alerts.
-- Runbook outcomes are simulated from hidden success rates; a real deployment would feed outcomes from monitoring.
-- The default planner is a deterministic playbook. The multi-provider LLM layer (adapters, failover, key handling) is
-  tested with scripted providers, mocked HTTP and a fake OpenAI-compatible server end to end, but has not been run
-  against the live vendor APIs. Default model names for each provider are editable in the console and may need updating.
-- The company-brain question router is rule-based, not an LLM.
-- The baseline reader is extractive and deliberately competent; a stronger LLM reader would narrow the single-lookup
-  gap but cannot reach documents that were not retrieved or facts that no document states.
-- FalkorDB's Cypher is a subset of OpenCypher: `shortestPath` works only in `WITH`/`RETURN` and directed, no label
-  expressions, and vector search does not combine with property filters. The tools are written around these limits.
-- FalkorDB queues at most 25 queries by default; the client gates in-flight queries and retries (see `tbk/graph.py`).
+- Module dependencies come from static imports: dynamic imports, reflection, build-system and runtime dependencies are invisible.
+- Ownership without CODEOWNERS is inferred from commits (and labelled). History is capped at the last 1,500 commits; uploads carry none.
+- The demo company's alerts, deploys and runbook outcomes are synthetic (outcomes simulated from hidden success rates).
+- The multi-provider LLM layer is tested with scripted providers and a fake OpenAI-compatible server end to end, not against live vendor APIs; default model names are editable.
+- The company-brain question router is rule-based; the baseline reader is extractive and deliberately competent.
+- FalkorDB's Cypher is a subset: `shortestPath` only in `WITH`/`RETURN` and directed (we use level-wise expansion), no label expressions, vector search doesn't combine with property filters.
 
 ## AI usage
 

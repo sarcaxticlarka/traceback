@@ -35,6 +35,7 @@ class Goal:
     service: str = ""
     signal: str = ""
     text: str = ""
+    window_hours: int = 24            # how far back to look for suspect changes (days, not hours, for code repos)
 
 
 class Planner(Protocol):
@@ -80,11 +81,11 @@ class InvestigatePlanner:
         if not service:
             return None
         if not _called(h, "recent_changes"):
-            return Step("recent_changes", {"service": service, "window_hours": 24, "depth": 2},
-                        "Find deploys to the service or its dependencies in the last 24h")
+            return Step("recent_changes", {"service": service, "window_hours": g.window_hours, "depth": 2},
+                        f"Find changes to the service or its dependencies in the last {g.window_hours}h")
         if not _called(h, "blast_radius"):
             return Step("blast_radius", {"service": service, "depth": 4}, "Measure who depends on the failing service")
-        suspect = pick_suspect(_last(h, "recent_changes").rows if _last(h, "recent_changes") else [], g.at)
+        suspect = pick_suspect(_last(h, "recent_changes").rows if _last(h, "recent_changes") else [], g.at, g.window_hours)
         target = suspect["service"] if suspect else service
         why_t = "suspect deploy's service" if suspect else "alerting service"
         if target != service and not _called(h, "blast_radius", service=target):

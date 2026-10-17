@@ -4,16 +4,17 @@ from __future__ import annotations
 import math
 
 
-def pick_suspect(rows: list[dict], at: int) -> dict | None:
+def pick_suspect(rows: list[dict], at: int, window_hours: int = 24) -> dict | None:
     """Rank deploys from ``recent_changes`` by dependency proximity and recency.
 
-    score = 1/(1+hops) * exp(-age_hours/12): a deploy to the alerting service itself or its nearest
+    score = 1/(1+hops) * exp(-age_hours/tau) with tau = max(12, window/6): a deploy to the alerting service itself or its nearest
     dependency, shortly before the alert, is the prime suspect.
     """
+    tau = max(12.0, window_hours / 6.0)
     best, best_score = None, -1.0
     for r in rows:
         age_h = max(0.0, (at - r["ts"]) / 3600.0)
-        score = (1.0 / (1.0 + r["hops"])) * math.exp(-age_h / 12.0)
+        score = (1.0 / (1.0 + r["hops"])) * math.exp(-age_h / tau)
         if score > best_score:
             best, best_score = dict(r, score=round(score, 4)), score
     return best
