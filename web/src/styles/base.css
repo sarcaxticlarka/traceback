@@ -3,7 +3,7 @@ html { scroll-behavior: smooth; }
 html, body, #root { min-height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--font-sans);
-  font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.012em; color: var(--text); }
 p { margin: 0 0 .75em; }

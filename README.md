@@ -10,6 +10,8 @@ and **withholds any claim it cannot confirm**.
 
 ![landing](docs/screens/landing.jpg)
 
+![the investigation window, tracing a claim to its evidence](docs/screens/product-window.jpg)
+
 ## Try it on your own code
 
 ```bash
