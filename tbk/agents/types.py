@@ -49,6 +49,7 @@ class RunReport:
     tasks: list[dict] = field(default_factory=list)
     actions: list[dict] = field(default_factory=list)
     learned: dict = field(default_factory=dict)
+    llm: dict | None = None            # provider used, failovers that happened (never contains keys)
     error: str | None = None
     ms: float = 0.0
 

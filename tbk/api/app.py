@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from collections import OrderedDict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+import base64
+
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +21,7 @@ from ..agents.qa import answer_question
 from ..config import DATA_DIR, NOW, ROOT, get_settings
 from ..evalx.baseline_reader import read_answer
 from ..graph import get_store
+from .. import providers
 from ..seed.generate import get_dataset
 from ..seed.load import load_dataset
 from ..switches import graph_switch
@@ -37,6 +41,17 @@ def _tenant(t: str) -> str:
     return t
 
 
+def _user_llm(x_llm_providers: str | None) -> list[providers.ProviderConfig]:
+    """Per-request provider keys from the frontend (base64 JSON in a header). Held for this request only."""
+    if not x_llm_providers:
+        return []
+    try:
+        raw = json.loads(base64.b64decode(x_llm_providers).decode())
+        return providers.parse_user_configs(raw)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise HTTPException(400, f"invalid X-LLM-Providers: {str(e)[:160]}")
+
+
 def _ctx(tenant: str, at: int = NOW) -> ToolContext:
     return ToolContext(_tenant(tenant), at)
 
@@ -54,6 +69,7 @@ class AskRequest(BaseModel):
     tenant: str
     question: str
     graph_enabled: bool = True
+    use_llm: bool | None = None
 
 
 class ApproveRequest(BaseModel):
@@ -79,8 +95,33 @@ def health():
     except Exception as e:
         return {"ok": False, "error": str(e)}
     s = get_settings()
-    return {"ok": ok, "tenants": s.tenants, "llm": bool(s.anthropic_key), "llm_model": s.llm_model if s.anthropic_key else None,
+    return {"ok": ok, "tenants": s.tenants, "llm": bool(providers.env_configs()), "llm_model": ", ".join(c.provider for c in providers.env_configs()) or None,
             "now": NOW, "graphs": sorted(g for g in get_store().db.list_graphs() if g.startswith("t_"))}
+
+
+@app.get("/api/llm/providers")
+def llm_providers():
+    """Presets the frontend can offer, and which providers the server already has keys for (names only)."""
+    return {"presets": [{"id": k, "label": v["label"], "default_model": v["model"], "custom_url": k == "custom"}
+                        for k, v in providers.PRESETS.items() if k != "custom" or providers.allow_custom_base_url()],
+            "server_default": [c.provider for c in providers.env_configs()]}
+
+
+@app.post("/api/llm/test")
+def llm_test(x_llm_providers: str | None = Header(default=None)):
+    """Send a one-token request to each supplied provider and report ok / error kind. Never echoes keys."""
+    out = []
+    for cfg in _user_llm(x_llm_providers):
+        t0 = time.perf_counter()
+        try:
+            r = providers.build_provider(cfg).complete("", [{"role": "user", "content": "Reply with the single word OK."}], None, 16)
+            out.append({"provider": cfg.provider, "model": cfg.resolved().model, "ok": True, "ms": round((time.perf_counter() - t0) * 1000),
+                        "reply": r.text[:20]})
+        except providers.ProviderError as e:
+            out.append({"provider": cfg.provider, "model": cfg.resolved().model, "ok": False, "kind": e.kind, "error": str(e)[:160]})
+        except ValueError as e:
+            out.append({"provider": cfg.provider, "ok": False, "kind": "config", "error": str(e)})
+    return out
 
 
 @app.get("/api/tools")
@@ -109,10 +150,11 @@ def alerts(tenant: str, live_only: bool = True):
 
 
 @app.post("/api/run")
-def run(req: RunRequest):
+def run(req: RunRequest, x_llm_providers: str | None = Header(default=None)):
     _tenant(req.tenant)
-    report = run_incident(req.tenant, req.alert_id, graph_enabled=req.graph_enabled, use_llm=req.use_llm,
-                          outcome=req.outcome, auto_approve=req.auto_approve).to_dict()
+    with providers.llm_scope(_user_llm(x_llm_providers)):
+        report = run_incident(req.tenant, req.alert_id, graph_enabled=req.graph_enabled, use_llm=req.use_llm,
+                              outcome=req.outcome, auto_approve=req.auto_approve).to_dict()
     with _RUNS_LOCK:
         _RUNS[report["run_id"]] = report
         while len(_RUNS) > 200:
@@ -146,15 +188,15 @@ def graph_overview(tenant: str):
 
 # --------------------------------------------------------------------------------------- company brain
 @app.post("/api/ask")
-def ask(req: AskRequest):
+def ask(req: AskRequest, x_llm_providers: str | None = Header(default=None)):
     _tenant(req.tenant)
     baseline = sorted(read_answer(req.tenant, req.question))
     if not req.graph_enabled:
         return {"question": req.question, "graph_enabled": False, "answers": [], "text": "Graph layer is OFF: only "
                 "document retrieval is available.", "baseline_docs_only": baseline,
                 "verification": {"grounded_pct": 0.0, "n_claims": 0, "claims": []}, "steps": []}
-    with graph_switch(True):
-        a = answer_question(req.tenant, req.question).to_dict()
+    with graph_switch(True), providers.llm_scope(_user_llm(x_llm_providers)):
+        a = answer_question(req.tenant, req.question, llm=providers.resolve_client(req.use_llm)).to_dict()
     a["graph_enabled"] = True
     a["baseline_docs_only"] = baseline
     return a

@@ -5,6 +5,7 @@ import IncidentView from './components/IncidentView'
 import MemoryView from './components/MemoryView'
 import ProofView from './components/ProofView'
 import { Pill, fmtTs } from './components/Common'
+import LLMSettings, { loadLLM } from './components/LLMSettings'
 
 const TABS = [['incident', 'Incident console'], ['ask', 'Company brain'], ['memory', 'Agent memory'], ['proof', 'Proof']]
 
@@ -19,6 +20,11 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [memKey, setMemKey] = useState(0)
+  const [llm, setLlm] = useState(loadLLM)
+  const [llmOpen, setLlmOpen] = useState(false)
+  const userKeys = llm.configs.filter((c) => c.api_key)
+  // true: use my keys · null: let the server decide (its own keys, else offline) · false: never call an LLM
+  const useLlm = !llm.enabled ? false : userKeys.length ? true : null
 
   useEffect(() => { api.health().then(setHealth).catch((e) => setErr(String(e))) }, [])
   useEffect(() => { setRun(null); api.alerts(tenant).then((a) => { setAlerts(a); setActiveAlert(a.sort((x, y) => x.id.localeCompare(y.id))[0]?.id) }).catch((e) => setErr(String(e))) }, [tenant])
@@ -26,7 +32,7 @@ export default function App() {
   const go = async (id = activeAlert) => {
     if (!id) return
     setBusy(true); setErr(''); setActiveAlert(id)
-    try { setRun(await api.run({ tenant, alert_id: id, graph_enabled: graphOn })); setMemKey((k) => k + 1) } catch (e) { setErr(String(e)) }
+    try { setRun(await api.run({ tenant, alert_id: id, graph_enabled: graphOn, use_llm: useLlm }, userKeys)); setMemKey((k) => k + 1) } catch (e) { setErr(String(e)) }
     setBusy(false)
   }
 
@@ -44,7 +50,9 @@ export default function App() {
         <button className={`switch ${graphOn ? '' : 'off'}`} onClick={() => setGraphOn(!graphOn)} title="Kill the graph: the product falls back to docs-only retrieval">
           <span className="dot" /> FalkorDB graph: {graphOn ? 'ON' : 'OFF'}
         </button>
-        <Pill kind={health?.llm ? 'ok' : ''}>{health?.llm ? `LLM: ${health.llm_model}` : 'offline planner'}</Pill>
+        <button className="switch" onClick={() => setLlmOpen(true)} title="Bring your own API keys; automatic failover between providers">
+          LLM: {!llm.enabled ? 'off' : userKeys.length ? `${userKeys.length} key${userKeys.length > 1 ? 's' : ''}` : health?.llm ? 'server keys' : 'offline planner'} ⚙
+        </button>
         <Pill kind={health?.ok ? 'ok' : 'bad'}>{health?.ok ? 'FalkorDB connected' : 'FalkorDB down'}</Pill>
       </header>
 
@@ -75,11 +83,12 @@ export default function App() {
         <section>
           <nav className="tabs">{TABS.map(([k, label]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{label}</button>)}</nav>
           {tab === 'incident' && <IncidentView tenant={tenant} run={run} onApproved={() => go()} />}
-          {tab === 'ask' && <AskView tenant={tenant} graphOn={graphOn} />}
+          {tab === 'ask' && <AskView tenant={tenant} graphOn={graphOn} useLlm={useLlm} keys={userKeys} />}
           {tab === 'memory' && <MemoryView tenant={tenant} refreshKey={memKey} />}
           {tab === 'proof' && <ProofView />}
         </section>
       </main>
+      <LLMSettings open={llmOpen} onClose={() => setLlmOpen(false)} llm={llm} setLlm={setLlm} />
     </div>
   )
 }

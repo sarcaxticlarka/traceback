@@ -55,19 +55,21 @@ def headline(f: dict) -> str:
 
 
 def run_investigator(ctx: ToolContext, goal: Goal, *, task_id: str | None = None, incident_id: str | None = None,
-                     use_llm: bool | None = None) -> tuple[AgentReport, dict]:
+                     llm=None) -> tuple[AgentReport, dict]:
     t0 = time.perf_counter()
     episode = memory.start_episode(ctx, "investigator", f"investigate {goal.alert_id or goal.service}", incident_id)
-    planner = make_planner(goal, use_llm)
+    planner = make_planner(goal, llm)
     results, steps = run_tool_loop(ctx, planner, "investigator", episode)
     service = getattr(planner, "service", "") or goal.service
     signal = getattr(planner, "signal", "") or goal.signal
     claims = pool_claims(results)
-    if use_llm:
-        claims = llm_rephrase(claims)
+    if llm is not None:
+        claims = llm_rephrase(claims, llm)
     verification = verify_claims(ctx, claims)
     finding = build_finding(ctx, goal, results, service, signal)
     finding["grounded_pct"] = verification.grounded_pct
+    if llm is not None:
+        finding["llm"] = llm.summary() | {"planner_error": getattr(planner, "error", None)}
     ms = (time.perf_counter() - t0) * 1000
     memory.finish_episode(ctx, episode, "completed" if finding["suspect"] else "no-suspect", ms)
     report = AgentReport("investigator", episode, task_id, steps, verification.to_dict(), finding, headline(finding),

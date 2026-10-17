@@ -1,7 +1,7 @@
 """Company-brain Q&A: natural-language question -> graph tools -> verified, sourced answer.
 
 Routing is a transparent rule-based parser (intent regex + entity vocabulary from the tenant graph). It is the
-offline counterpart of letting an LLM choose tools (``AnthropicPlanner`` does that for free-form questions);
+offline counterpart of letting an LLM choose tools (``LLMPlanner`` does that for free-form questions);
 keeping it deterministic makes the evaluation reproducible.
 """
 from __future__ import annotations
@@ -48,10 +48,12 @@ class Answer:
     verification: dict = field(default_factory=dict)
     ms: float = 0.0
     error: str | None = None
+    llm: dict | None = None
 
     def to_dict(self) -> dict:
         return {"question": self.question, "intent": self.intent, "answers": sorted(self.answers), "text": self.text,
-                "steps": self.steps, "verification": self.verification, "ms": self.ms, "error": self.error}
+                "steps": self.steps, "verification": self.verification, "ms": self.ms, "error": self.error,
+                "llm": self.llm}
 
 
 def parse_date(text: str) -> int | None:
@@ -84,7 +86,7 @@ def detect_intent(text: str) -> str:
     return "freeform"
 
 
-def answer_question(tenant: str, question: str, at: int = NOW) -> Answer:
+def answer_question(tenant: str, question: str, at: int = NOW, llm=None) -> Answer:
     t0 = time.perf_counter()
     ctx = ToolContext(tenant, at)
     intent = detect_intent(question)
@@ -138,12 +140,24 @@ def answer_question(tenant: str, question: str, at: int = NOW) -> Answer:
             ans.answers = {r["person"] for r in rows}
         elif intent == "who_resolved":
             ans.answers = {r["person"] for r in call("incident_resolvers", service=svc).rows}
+        elif llm is not None:
+            # free-form question: the model picks tools (with provider failover); every claim is still verified
+            from ..llm import Goal, LLMPlanner
+            from .runner import run_tool_loop
+            planner = LLMPlanner(Goal("question", tenant, at, text=question), llm)
+            results, steps = run_tool_loop(ctx, planner, "qa", None, max_steps=10)
+            ans.steps = [{"tool": s.tool, "args": s.args, "summary": s.summary, "n_claims": s.n_claims, "ms": s.ms,
+                          "cypher_ref": s.cypher_ref, "error": s.error} for s in steps]
+            ans.text = planner.final_text or ""
+            ans.error = ans.error or (f"LLM unavailable ({planner.error})" if planner.error else None)
         else:
             hits = call("search_docs", query=question, top=5)
             ans.text = "Could not map the question to a graph tool; closest documents: " + ", ".join(
                 r["id"] for r in hits.rows)
     except Exception as e:
         ans.error = f"{type(e).__name__}: {e}"
+    if llm is not None and intent == "freeform":
+        ans.llm = llm.summary()
     claims = all_claims(results, cap=14)
     ver = verify_claims(ctx, claims) if claims else None
     ans.verification = ver.to_dict() if ver else {"grounded_pct": 0.0, "n_claims": 0, "claims": []}

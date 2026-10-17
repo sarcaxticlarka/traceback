@@ -6,11 +6,24 @@ const j = async (url, opts) => {
 const post = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 const q = (o) => new URLSearchParams(o).toString()
 
+/** User-supplied provider keys travel in a header (base64 JSON), per request; the server never stores them. */
+const llmHeader = (configs) => {
+  const usable = (configs || []).filter((c) => c.api_key)
+  if (!usable.length) return {}
+  return { 'X-LLM-Providers': btoa(unescape(encodeURIComponent(JSON.stringify(usable)))) }
+}
+const postH = (body, configs) => {
+  const base = post(body)
+  return { ...base, headers: { ...base.headers, ...llmHeader(configs) } }
+}
+
 export const api = {
   health: () => j('/api/health'),
   alerts: (tenant) => j(`/api/alerts?${q({ tenant })}`),
-  run: (body) => j('/api/run', post(body)),
-  ask: (body) => j('/api/ask', post(body)),
+  run: (body, configs) => j('/api/run', postH(body, configs)),
+  ask: (body, configs) => j('/api/ask', postH(body, configs)),
+  llmProviders: () => j('/api/llm/providers'),
+  llmTest: (configs) => j('/api/llm/test', { method: 'POST', headers: llmHeader(configs) }),
   verify: (tenant, claims) => j('/api/verify', post({ tenant, claims })),
   subgraph: (tenant, edgeIds, nodeIds = []) =>
     j(`/api/subgraph?${q({ tenant, edge_ids: edgeIds.join(','), node_ids: nodeIds.join(',') })}`),

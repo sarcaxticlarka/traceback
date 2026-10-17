@@ -9,6 +9,7 @@ import time
 
 from .. import memory, tasks
 from ..llm import Goal
+from ..providers import resolve_client
 from ..switches import graph_switch
 from ..tools import ToolContext
 from .fallback import run_without_graph
@@ -37,7 +38,8 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
     if ts is None:
         return RunReport(run_id, tenant, alert_id, None, True, "none", error=f"unknown alert {alert_id}")
     ctx = ToolContext(tenant, ts)
-    report = RunReport(run_id, tenant, alert_id, None, True, "llm" if (use_llm and _llm_ok()) else "offline-playbook")
+    llm = resolve_client(use_llm)
+    report = RunReport(run_id, tenant, alert_id, None, True, "llm" if llm else "offline-playbook")
     tri, ticket = run_triage(ctx, alert_id, run_id)
     report.agents.append(tri)
     if not ticket:
@@ -54,7 +56,7 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
             break
         try:
             if task["kind"] == "investigate":
-                rep, finding = run_investigator(ctx, goal, task_id=task["id"], incident_id=incident, use_llm=use_llm)
+                rep, finding = run_investigator(ctx, goal, task_id=task["id"], incident_id=incident, llm=llm)
                 rep.task_id = task["id"]
                 tasks.complete_task(ctx, task["id"], incident, {"text": rep.headline, "payload": finding,
                                                                "grounded_pct": finding.get("grounded_pct", 0.0)})
@@ -74,12 +76,8 @@ def run_incident(tenant: str, alert_id: str, *, graph_enabled: bool = True, use_
     inv = next((a for a in report.agents if a.agent == "investigator" and a.payload), None)
     rem = next((a for a in report.agents if a.agent == "remediator"), None)
     report.headline = " ".join(x for x in [inv.headline if inv else "", rem.headline if rem else ""] if x)
+    report.llm = inv.payload.get("llm") if inv else None
     report.tasks = tasks.list_tasks(ctx, incident)
     report.actions = memory.list_actions(ctx, incident)
     report.ms = round((time.perf_counter() - t0) * 1000, 1)
     return report
-
-
-def _llm_ok() -> bool:
-    from ..config import get_settings
-    return bool(get_settings().anthropic_key)

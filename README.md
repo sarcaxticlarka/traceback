@@ -86,8 +86,18 @@ Besides incidents, a **Company brain** view answers natural-language questions a
   when service names overlap.
 - **Concurrency:** client-side admission control and retry against FalkorDB's queue limit; benchmark included.
 - **MCP server:** every tool is available to any MCP client (Claude Desktop, Cursor, custom agents).
-- **Optional LLM:** with an Anthropic API key the Investigator uses Claude's tool-use loop and can rephrase claims;
-  the verifier still gates every sentence. Without a key a deterministic playbook runs (fully offline).
+- **Optional LLM, any provider, bring your own key:** the Investigator can plan with an LLM's tool-use loop, free-form
+  company questions can be answered by an LLM that calls the graph tools, and claim text can be polished. Supported:
+  **Anthropic (Claude)** natively and any **OpenAI-compatible** API (OpenAI, Google Gemini, Groq, OpenRouter, Mistral,
+  DeepSeek, or a local server such as Ollama). The verifier still gates every sentence, so a model can't add facts.
+  Without any key a deterministic playbook runs (fully offline).
+- **Automatic failover between providers:** users add one or more provider keys in the console (⚙ in the header),
+  ordered by priority. If a provider hits a rate limit, runs out of quota, is overloaded, times out, or rejects the
+  key, the next one takes over **mid-investigation** (the conversation is kept in a provider-neutral format) and the
+  console shows which provider answered and why it switched. A limited provider is skipped for a cool-down period.
+- **Keys stay with the user:** keys are sent per request in a header, used for that request only, never stored or
+  logged by the server, and scrubbed from error messages. They are kept in the browser only if the user ticks
+  "remember". Preset providers use fixed URLs, so the UI cannot be used to make the server call arbitrary hosts.
 
 ## Technology stack
 
@@ -102,12 +112,13 @@ Besides incidents, a **Company brain** view answers natural-language questions a
 | **FastAPI + Uvicorn + Pydantic** | HTTP API and static hosting of the console |
 | **NumPy** | Dense/sparse retrieval math for the documents-only baseline |
 | **MCP Python SDK** | Exposes the graph tools to MCP clients (stdio or streamable HTTP) |
-| **Anthropic SDK** (optional) | Claude tool-use planner and claim rephrasing when `ANTHROPIC_API_KEY` is set |
+| **Anthropic SDK** (optional) | Claude provider (tool use) |
+| **httpx** (optional) | OpenAI-compatible provider adapter (OpenAI, Gemini, Groq, OpenRouter, Mistral, DeepSeek, custom) |
 | **Hashed text embeddings** (local) | Deterministic 256-dim embeddings; no network or API key needed |
 | **React 18 + Vite** | Incident console |
 | **d3-force** | Layout for the evidence-graph view (rendering is plain SVG) |
 | **Docker / Docker Compose** | Runs FalkorDB and the app together |
-| **pytest** | 32 tests: verifier, agents, isolation, MCP, LLM paths, evaluation |
+| **pytest** | 52 tests: verifier, agents, isolation, MCP, LLM providers and failover, evaluation |
 
 ## Setup
 
@@ -139,15 +150,16 @@ Copy `.env.example` to `.env` (all optional):
 | Variable | Default | Meaning |
 |---|---|---|
 | `FALKORDB_HOST` / `FALKORDB_PORT` / `FALKORDB_PASSWORD` | `localhost` / `6390` / none | FalkorDB connection (a managed FalkorDB Cloud instance works too) |
-| `ANTHROPIC_API_KEY` | none | Enables the Claude planner and claim rephrasing |
-| `TBK_LLM_MODEL` | `claude-sonnet-5-5` | Model used when a key is set |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | none | Server-side default providers (tried after any keys the user supplies in the console) |
+| `TBK_LLM_MODEL` | `claude-sonnet-5-5` | Model for the server-side Anthropic key (other providers use their preset default; users can override per provider in the console) |
+| `TBK_ALLOW_CUSTOM_BASE_URL` | off | Set to `1` to let users add a "custom OpenAI-compatible" endpoint (e.g. a local Ollama). Off by default to prevent SSRF |
 | `TBK_TENANTS` | `helix,orbit` | Tenant graphs to use |
 | `TBK_MAX_INFLIGHT` | `16` | Max concurrent queries per process |
 
 ### Everyday commands
 
 ```bash
-make test       # run the 32 tests (needs FalkorDB up)
+make test       # run the 52 tests (needs FalkorDB up)
 make eval       # graph agent vs documents-only baseline -> docs/EVAL.md
 make bench      # concurrency benchmark -> docs/BENCH.md
 make queries    # regenerate QUERIES.md from the source
@@ -166,6 +178,7 @@ MCP client configuration (Claude Desktop):
 
 | Tab | What you can do |
 |---|---|
+| **Header ⚙ LLM** | Add your own provider keys, order them for failover, test them, optionally remember them in this browser |
 | **Incident console** | Run the crew on a live alert; replay the evidence graph; click claims; inject a hallucination; approve risky actions; see tasks and what was learned |
 | **Company brain** | Ask questions in plain language; compare the graph answer with the documents-only answer |
 | **Agent memory** | See runbook statistics, facts with validity, recent episodes; re-run the learning simulation |
@@ -184,7 +197,8 @@ tbk/
   memory.py         episodes, tool calls, supersedable facts, incidents, actions
   tasks.py          task graph, atomic claim, handoff
   agents/           triage, investigator, remediator, company-brain Q&A, orchestrator
-  llm.py            offline playbook planner and Claude tool-use planner
+  providers.py      LLM adapters (Anthropic, OpenAI-compatible), failover, per-request keys
+  llm.py            offline playbook planner and provider-agnostic LLM tool-use planner
   seed/             deterministic synthetic company generator + bulk loader
   evalx/            evaluation questions, baseline reader, runner
   api/app.py        FastAPI app        mcp_server.py   MCP server
@@ -225,8 +239,9 @@ It is a correctness check, not a claim of general reasoning ability.
 
 - All data is synthetic and generated deterministically (`tbk/seed/generate.py`), including the "live" alerts.
 - Runbook outcomes are simulated from hidden success rates; a real deployment would feed outcomes from monitoring.
-- The default planner is a deterministic playbook. The Claude planner path is implemented and unit-tested with a
-  scripted fake client but has not been run against the live API.
+- The default planner is a deterministic playbook. The multi-provider LLM layer (adapters, failover, key handling) is
+  tested with scripted providers, mocked HTTP and a fake OpenAI-compatible server end to end, but has not been run
+  against the live vendor APIs. Default model names for each provider are editable in the console and may need updating.
 - The company-brain question router is rule-based, not an LLM.
 - The baseline reader is extractive and deliberately competent; a stronger LLM reader would narrow the single-lookup
   gap but cannot reach documents that were not retrieved or facts that no document states.

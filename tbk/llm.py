@@ -1,7 +1,8 @@
 """Planner layer: decides *which tool to call next*. Two interchangeable implementations.
 
 * ``InvestigatePlanner`` - deterministic playbook that reacts to tool results (works offline, reproducible).
-* ``AnthropicPlanner``  - Claude tool-use loop over the same tool registry (needs ANTHROPIC_API_KEY).
+* ``LLMPlanner``        - tool-use loop over the same tool registry on any provider (Anthropic, OpenAI-compatible)
+                          with automatic failover (see ``providers.py``).
 
 The LLM never produces graph facts: facts come from tools as evidence-bearing claims and are verified
 afterwards. The LLM only chooses tools and (optionally) selects/rephrases claims.
@@ -12,7 +13,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from .config import get_settings
+from .providers import FailoverClient, ProviderError
 from .tools import tool_schemas
 from .tools.base import ToolResult
 from .agents.scoring import pick_suspect
@@ -110,21 +111,27 @@ database reachable ONLY through your tools. Rules:
 - Prefer few, targeted calls. Stop (reply with plain text, no tool call) once you can name the likely cause, owner and
   who to page. Maximum {max_steps} tool calls."""
 
+QUESTION_PROMPT = """You answer questions about a company using ONLY the provided graph tools (ownership, dependencies,
+deploys, incidents, decisions, time-aware facts). Call the tools you need, then reply with a short plain-text answer.
+Never state facts you did not get from a tool. Maximum {max_steps} tool calls."""
 
-class AnthropicPlanner:
-    """Claude tool-use loop. One tool call is surfaced per ``next`` so the orchestrator can run, record and verify it."""
 
-    def __init__(self, goal: Goal, client=None, max_steps: int = 10):
-        s = get_settings()
-        if client is None:
-            import anthropic
-            client = anthropic.Anthropic(api_key=s.anthropic_key)
-        self.client, self.model, self.goal, self.max_steps = client, s.llm_model, goal, max_steps
+class LLMPlanner:
+    """Tool-use loop over any provider (Anthropic or OpenAI-compatible) with automatic failover.
+
+    One tool call is surfaced per ``next`` so the orchestrator can run, record and verify it. The conversation is kept
+    in a provider-neutral format, so a run can switch providers mid-way if one hits a rate limit.
+    """
+
+    def __init__(self, goal: Goal, client: FailoverClient, max_steps: int = 10):
+        self.client, self.goal, self.max_steps = client, goal, max_steps
         self.messages: list[dict] = [{"role": "user", "content": self._prompt()}]
         self._pending: list[dict] = []
         self._awaiting: str | None = None
         self._steps = 0
         self.service, self.signal = goal.service, goal.signal
+        self.final_text = ""
+        self.error: str | None = None
 
     def _prompt(self) -> str:
         g = self.goal
@@ -138,31 +145,31 @@ class AnthropicPlanner:
         if self._awaiting is not None and history:
             res = history[-1]
             payload = json.dumps({"summary": res.summary, "rows": res.rows[:12], "error": res.error}, default=str)
-            self.messages.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": self._awaiting, "content": payload}]})
+            self.messages.append({"role": "tool", "tool_call_id": self._awaiting, "content": payload})
             self._awaiting = None
         if not self._pending:
-            resp = self.client.messages.create(model=self.model, max_tokens=1024,
-                                               system=SYSTEM_PROMPT.format(max_steps=self.max_steps),
-                                               tools=tool_schemas(), messages=self.messages)
-            self.messages.append({"role": "assistant", "content": resp.content})
-            self._pending = [b for b in resp.content if getattr(b, "type", "") == "tool_use"]
+            system = (SYSTEM_PROMPT if self.goal.kind == "investigate" else QUESTION_PROMPT).format(max_steps=self.max_steps)
+            try:
+                resp = self.client.complete(system, self.messages, tool_schemas(), 1024)
+            except ProviderError as e:
+                self.error = f"{e.provider}: {e.kind}"
+                return None                       # every provider failed: the orchestrator falls back to what it has
+            self.messages.append({"role": "assistant", "text": resp.text,
+                                  "tool_calls": [{"id": c.id, "name": c.name, "input": c.input} for c in resp.tool_calls]})
+            self._pending = [{"id": c.id, "name": c.name, "input": c.input} for c in resp.tool_calls]
             if not self._pending:
+                self.final_text = resp.text
                 return None
-        block = self._pending.pop(0)
-        self._awaiting = block.id
+        call = self._pending.pop(0)
+        self._awaiting = call["id"]
         self._steps += 1
-        if block.name in ("blast_radius", "recent_changes", "dependencies") and block.input.get("service"):
-            self.service = self.service or block.input["service"]
-        return Step(block.name, dict(block.input), "chosen by model")
+        if call["name"] in ("blast_radius", "recent_changes", "dependencies") and call["input"].get("service"):
+            self.service = self.service or call["input"]["service"]
+        return Step(call["name"], dict(call["input"]), "chosen by model")
 
 
-def make_planner(goal: Goal, use_llm: bool | None = None):
-    s = get_settings()
-    use = bool(s.anthropic_key) if use_llm is None else (use_llm and bool(s.anthropic_key))
-    if use and goal.kind == "investigate":
-        try:
-            return AnthropicPlanner(goal)
-        except Exception:
-            pass
+def make_planner(goal: Goal, client: FailoverClient | None = None):
+    """LLM planner when a provider client is available, otherwise the deterministic playbook."""
+    if client is not None and goal.kind in ("investigate", "question"):
+        return LLMPlanner(goal, client)
     return InvestigatePlanner(goal)

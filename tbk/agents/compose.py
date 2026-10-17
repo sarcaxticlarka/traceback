@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import re
 
-from ..config import get_settings
 from ..tools import Claim, ToolResult
 
 # tool -> max claims taken, in presentation order
@@ -53,19 +52,13 @@ exactly as written and do not add any entity, number or fact that is not in the 
 
 
 def llm_rephrase(claims: list[Claim], client=None) -> list[Claim]:
-    """Optional: ask the model to polish claim text. Any failure returns the claims unchanged."""
-    s = get_settings()
-    if client is None:
-        if not s.anthropic_key:
-            return claims
-        import anthropic
-        client = anthropic.Anthropic(api_key=s.anthropic_key)
+    """Optional: ask a provider (with failover) to polish claim text. Any failure returns the claims unchanged."""
+    if client is None or not claims:
+        return claims
     numbered = "\n".join(f"{i}. {c.text}" for i, c in enumerate(claims))
     try:
-        resp = client.messages.create(model=s.llm_model, max_tokens=1500,
-                                      messages=[{"role": "user", "content": REPHRASE_PROMPT.format(claims=numbered)}])
-        raw = "".join(getattr(b, "text", "") for b in resp.content)
-        data = json.loads(re.search(r"\{.*\}", raw, re.S).group(0))
+        resp = client.complete("", [{"role": "user", "content": REPHRASE_PROMPT.format(claims=numbered)}], None, 1500)
+        data = json.loads(re.search(r"\{.*\}", resp.text, re.S).group(0))
         by_i = {int(x["i"]): str(x["text"]) for x in data["claims"]}
     except Exception:
         return claims

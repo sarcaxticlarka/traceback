@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
 import { GroundedBadge, Pill } from './Common'
+import { LLMBadge } from './LLMSettings'
 
 const SAMPLES = [
   'Which teams own services that would be impacted if auth-service fails?',
@@ -12,7 +13,7 @@ const SAMPLES = [
   'What is the current decision constraining ledger-store?',
 ]
 
-export default function AskView({ tenant, graphOn }) {
+export default function AskView({ tenant, graphOn, useLlm, keys }) {
   const [question, setQuestion] = useState(SAMPLES[0])
   const [res, setRes] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -20,7 +21,7 @@ export default function AskView({ tenant, graphOn }) {
 
   const go = async (text = question) => {
     setBusy(true); setErr('')
-    try { setRes(await api.ask({ tenant, question: text, graph_enabled: graphOn })) } catch (e) { setErr(String(e)) }
+    try { setRes(await api.ask({ tenant, question: text, graph_enabled: graphOn, use_llm: useLlm }, keys)) } catch (e) { setErr(String(e)) }
     setBusy(false)
   }
 
@@ -47,8 +48,9 @@ export default function AskView({ tenant, graphOn }) {
             <h3>Graph agent (FalkorDB)</h3>
             {res.graph_enabled === false ? <div className="banner">Graph is OFF. This agent has no tools to call.</div> : (
               <>
-                <div className="row"><Pill kind="blue">intent: {res.intent}</Pill><GroundedBadge pct={res.verification.grounded_pct} n={res.verification.n_claims} /><span className="muted mono">{res.ms} ms</span></div>
+                <div className="row"><Pill kind="blue">intent: {res.intent}</Pill><GroundedBadge pct={res.verification.grounded_pct} n={res.verification.n_claims} /><span className="muted mono">{res.ms} ms</span><LLMBadge info={res.llm} /></div>
                 <div className="answer">{res.answers?.length ? res.answers.map((a) => <Pill key={a} kind="ok">{a}</Pill>) : <span className="muted">{res.text || res.error || 'No answer.'}</span>}</div>
+                {res.llm && res.text && !res.answers?.length && <div className="muted" style={{ fontSize: 12 }}>Model summary (unverified text). Only the claims below are verified.</div>}
                 <h3 style={{ marginTop: 14 }}>How it got there</h3>
                 {res.steps.map((s, i) => (
                   <div className="step" key={i}><span className="n mono">{i + 1}</span>

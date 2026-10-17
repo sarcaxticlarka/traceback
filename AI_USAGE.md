@@ -7,7 +7,7 @@ in a single working session at the participant's direction: the synthetic-compan
 memory/task layers, agents, evaluation harness, API, MCP server, React console, tests and documentation.
 
 **Verification performed**
-- 32 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
+- 52 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
   behaviour, tenant isolation, MCP client round-trip, LLM paths with a scripted fake client).
 - Evaluation ground truth is computed from the generator's model, independently of FalkorDB.
 - Bugs found by running it rather than by reading it: the benchmark exposed FalkorDB's queue limit (added admission
@@ -20,4 +20,4 @@ memory/task layers, agents, evaluation harness, API, MCP server, React console, 
 - [ ] I can explain the evaluation design, its limits, and why the graph agent's 100% is a correctness check.
 - [ ] Describe here what you changed, chose or decided: …
 
-The Claude planner path (`ANTHROPIC_API_KEY`) is implemented but was exercised only with a fake client in this build.
+The multi-provider LLM layer was exercised with scripted providers, mocked HTTP and a fake OpenAI-compatible server, not with live vendor APIs.

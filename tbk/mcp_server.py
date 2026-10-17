@@ -17,6 +17,7 @@ from mcp.server.mcpserver import MCPServer
 from .agents.orchestrator import run_incident
 from .agents.qa import answer_question
 from .config import NOW, get_settings
+from .providers import resolve_client
 from .tools import REGISTRY, ToolContext, run_tool
 from .tools.base import ToolSpec
 from .verifier import verify_claims
@@ -65,7 +66,7 @@ def build_server() -> MCPServer:
 
     def ask(question: str, tenant: str = get_settings().tenants[0]) -> str:
         """Answer a company question from the graph with verified, sourced claims."""
-        return json.dumps(answer_question(tenant, question).to_dict(), default=str)
+        return json.dumps(answer_question(tenant, question, llm=resolve_client(None)).to_dict(), default=str)
 
     def investigate_alert(alert_id: str, tenant: str = get_settings().tenants[0]) -> str:
         """Run the Triage → Investigator → Remediator crew on an alert; returns the full run report."""

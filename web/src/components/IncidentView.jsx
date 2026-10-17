@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import GraphView from './GraphView'
 import { Bar, GroundedBadge, Pill, fmtTs } from './Common'
+import { LLMBadge } from './LLMSettings'
 
 const AGENT_COLOR = { triage: 'blue', investigator: 'ok', remediator: 'warn' }
 
@@ -105,6 +106,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
           <GroundedBadge pct={run.grounded_pct} n={run.n_claims} />
           {run.n_withheld > 0 && <Pill kind="bad">{run.n_withheld} withheld</Pill>}
           <Pill kind="blue">{run.planner}</Pill>
+          <LLMBadge info={run.llm} />
           {run.incident_id && <Pill>{run.incident_id}</Pill>}
           <Pill>{run.ms} ms</Pill>
         </div>

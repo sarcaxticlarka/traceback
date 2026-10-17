@@ -25,7 +25,8 @@
 | `memory.py` | Episodes, tool calls, supersedable facts, incidents, actions |
 | `tasks.py` | Task graph, atomic claim, handoff |
 | `agents/` | triage, investigator, remediator, qa (company brain), orchestrator, scoring, fallback (graph off) |
-| `llm.py` | `InvestigatePlanner` (offline) and `AnthropicPlanner` (tool-use loop) |
+| `providers.py` | Anthropic + OpenAI-compatible adapters, `FailoverClient` (cool-downs, error classification), request-scoped keys |
+| `llm.py` | `InvestigatePlanner` (offline) and `LLMPlanner` (provider-agnostic tool-use loop) |
 | `seed/` | Deterministic synthetic company + bulk loader |
 | `evalx/`, `bench.py`, `isolation.py`, `sim.py` | Proof: A/B eval, concurrency, tenant canary, learning curve |
 | `api/app.py`, `mcp_server.py` | HTTP and MCP surfaces over the same tools |
@@ -49,3 +50,14 @@ Grounded % = grounded / proposed.
 - **Cypher limits worked around:** `shortestPath` only in `WITH/RETURN` and directed (we use bounded variable-length
   paths ordered by length); variable-length bounds can't be parameters (depth is int-clamped and interpolated); vector
   search doesn't combine with property filters (retrieve, then traverse).
+
+## LLM provider layer
+
+- Conversations use a provider-neutral format (`user` / `assistant{text, tool_calls}` / `tool`), converted per
+  provider, so a run can switch providers between model turns without losing context.
+- `FailoverClient` classifies errors (`rate_limit`, `quota`, `overloaded`, `timeout`, `network`, `auth`,
+  `bad_request`). All but `bad_request` fail over to the next provider; the failing key is put on cool-down
+  (`Retry-After` honoured). If every provider fails, the Investigator returns what it has gathered (graph tools it
+  already ran remain verified) instead of crashing.
+- User keys travel per request (`X-LLM-Providers`), live in a `contextvar` for the request, and are never persisted,
+  logged or returned. Preset provider URLs are fixed; custom URLs need an explicit server flag.
