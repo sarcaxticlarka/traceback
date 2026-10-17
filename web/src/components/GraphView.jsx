@@ -6,9 +6,9 @@ export const LABEL_COLORS = {
   Service: '#7ba7ff', Person: '#f5c451', Team: '#b79cff', Deploy: '#ff7a6b', Incident: '#ff9f43', Alert: '#f472b6',
   Doc: '#94a3b8', Decision: '#4fd1e0', Fact: '#54d6a1', Runbook: '#a3e635', Source: '#64748b', Task: '#e879f9',
 }
-const W = 900, H = 520, PAD = 46
+const PAD = 46
 
-function layout(nodes, edges, ticks) {
+function layout(nodes, edges, ticks, W, H) {
   const ns = nodes.map((n) => ({ ...n }))
   const idx = new Map(ns.map((n) => [n.id, n]))
   const links = edges.filter((e) => idx.has(e.source) && idx.has(e.target)).map((e) => ({ ...e }))
@@ -39,8 +39,25 @@ function layout(nodes, edges, ticks) {
  *  onNode(node) makes nodes clickable · selected: node id · labels: 'all' | 'top' · sizeBy: 'dependents' to scale by importance
  */
 function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, replayKey = 0, onNode, selected, labels = 'all', sizeBy, height = 520, view, setView, svgRef, fill }) {
-  const { ns, links } = useMemo(() => (nodes.length ? layout(nodes, edges, nodes.length > 40 ? 420 : 320) : { ns: [], links: [] }), [nodes, edges])
+  // Lay out for the real shape of the container (1 SVG unit = 1 CSS pixel), so the graph fills the card instead of letterboxing.
+  const [dim, setDim] = useState({ w: 900, h: 520 })
+  const { ns, links } = useMemo(() => (nodes.length ? layout(nodes, edges, nodes.length > 40 ? 420 : 320, dim.w, dim.h) : { ns: [], links: [] }), [nodes, edges, dim.w, dim.h])
   const drag = useRef(null)
+  const present = ns.length > 0
+  useEffect(() => {
+    const el = svgRef?.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height) return
+      const w = Math.max(280, Math.min(1600, Math.round(r.width / 20) * 20)), h = Math.max(260, Math.min(1000, Math.round(r.height / 20) * 20))
+      setDim((d) => (d.w === w && d.h === h ? d : { w, h }))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [present, svgRef])
   if (!ns.length) return <div className="empty">No evidence to draw yet.</div>
   const showEdgeLabels = links.length <= 22
   const firstSeen = new Map()
@@ -67,10 +84,10 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
 
   return (
     <div>
-      <svg ref={svgRef} className="graph" style={{ height: fill ? "100%" : height }} viewBox={`0 0 ${W} ${H}`} key={replayKey} role="img" aria-label="Dependency graph"
+      <svg ref={svgRef} className="graph" style={{ height: fill ? "100%" : height }} viewBox={`0 0 ${dim.w} ${dim.h}`} key={replayKey} role="img" aria-label="Dependency graph"
         onWheel={onWheel} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
         <defs><marker id="arrow" viewBox="0 0 10 10" refX="19" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--faint)' }} /></marker></defs>
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.k}) `} style={{ transformOrigin: '450px 260px' }}>
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.k}) `} style={{ transformOrigin: `${dim.w / 2}px ${dim.h / 2}px` }}>
           {links.map((e) => {
             const hl = highlight?.has(e.id) || (selected && (e.source.id === selected || e.target.id === selected))
             const dim = (highlight && highlight.size > 0 && !hl) || (selected && !hl)
@@ -78,7 +95,7 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
             const mx = (e.source.px + e.target.px) / 2, my = (e.source.py + e.target.py) / 2
             return (
               <g key={e.id}>
-                <line className={`edge ${hl ? 'hl' : ''} ${dim ? 'dim' : ''} ${order ? 'reveal' : ''}`} markerEnd="url(#arrow)"
+                <line className={`edge ${hl ? 'hl' : ''} ${dim ? 'dim' : ''} ${order ? 'g-reveal' : ''}`} markerEnd="url(#arrow)"
                   x1={e.source.px} y1={e.source.py} x2={e.target.px} y2={e.target.py} style={{ animationDelay: `${delay}ms` }} />
                 {(showEdgeLabels || (hl && highlight)) && <text x={mx} y={my - 3} fontSize="8.5" textAnchor="middle"
                   style={{ fill: hl ? 'var(--accent)' : 'var(--faint)', paintOrder: 'stroke', stroke: 'var(--bg-elev)', strokeWidth: 3 }}>{e.type}</text>}
@@ -92,7 +109,7 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
             const dim = selected && !isSel && !neighbors.has(n.id)
             const showLabel = labels === 'all' || isSel || neighbors.has(n.id) || (labels === 'top' && topIds.has(n.id))
             return (
-              <g key={n.id} className={`node ${order ? 'reveal' : ''} ${onNode ? 'clickable' : ''}`} transform={`translate(${n.px},${n.py})`}
+              <g key={n.id} className={`node ${order ? 'g-reveal' : ''} ${onNode ? 'clickable' : ''}`} transform={`translate(${n.px},${n.py})`}
                 style={{ animationDelay: `${delay}ms`, opacity: dim ? .28 : undefined }} onClick={(e) => { e.stopPropagation(); onNode?.(n) }}>
                 <title>{`${n.label}: ${n.name}\n${n.id}`}</title>
                 <circle r={r} fill={LABEL_COLORS[n.label] || '#888'} style={{ stroke: isSel ? 'var(--accent)' : 'var(--bg-elev)', strokeWidth: isSel ? 3.5 : 2 }} />
@@ -162,7 +179,7 @@ export default function GraphView(props) {
 export function svgForExport(svg) {
   const cs = getComputedStyle(document.documentElement)
   const v = (name) => cs.getPropertyValue(name).trim()
-  svg.querySelectorAll('.reveal').forEach((n) => { n.classList.remove('reveal'); n.style.animationDelay = ''; n.style.opacity = '' })
+  svg.querySelectorAll('.g-reveal').forEach((n) => { n.classList.remove('g-reveal'); n.style.animationDelay = ''; n.style.opacity = '' })
   const css = `.edge{stroke:${v('--line-2')};stroke-width:1.2;fill:none}.edge.hl{stroke:${v('--accent')};stroke-width:2.6}.edge.dim{opacity:.2}` +
     `.node text{fill:${v('--text')};font:10.5px sans-serif;paint-order:stroke;stroke:${v('--bg-elev')};stroke-width:3px}`
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')

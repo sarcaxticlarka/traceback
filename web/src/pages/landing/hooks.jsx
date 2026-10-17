@@ -8,9 +8,15 @@ export function useInView(threshold = 0.18) {
   const [seen, setSeen] = useState(() => reduced())
   useEffect(() => {
     if (seen || !ref.current) return undefined
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold })
-    io.observe(ref.current)
-    return () => io.disconnect()
+    const el = ref.current
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) setSeen(true) }, { threshold })
+    io.observe(el)
+    // IntersectionObserver can miss an element that is jumped over entirely (scrollbar drag, End key, anchor jump):
+    // anything at or above the lower part of the viewport counts as seen.
+    const onScroll = () => { if (el.getBoundingClientRect().top < window.innerHeight * 0.92) setSeen(true) }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => { io.disconnect(); window.removeEventListener('scroll', onScroll) }
   }, [seen, threshold])
   return [ref, seen]
 }
@@ -18,7 +24,7 @@ export function useInView(threshold = 0.18) {
 /** Fade-and-rise on scroll. */
 export function Reveal({ children, delay = 0, as: Tag = 'div', className = '', ...rest }) {
   const [ref, seen] = useInView()
-  return <Tag ref={ref} className={`reveal ${seen ? 'in' : ''} ${className}`} style={{ '--d': `${delay}ms` }} {...rest}>{children}</Tag>
+  return <Tag ref={ref} className={`lp-reveal ${seen ? 'in' : ''} ${className}`} style={{ '--d': `${delay}ms` }} {...rest}>{children}</Tag>
 }
 
 /** Number that counts up when it scrolls into view. */

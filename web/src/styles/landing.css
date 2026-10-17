@@ -53,9 +53,9 @@
 .sec-head p { color: var(--text-2); font-size: 17px; margin-top: 16px; max-width: 62ch; }
 
 /* ---------- reveal ---------- */
-.reveal { opacity: 0; transform: translateY(26px); transition: opacity .9s cubic-bezier(.2, .7, .2, 1) var(--d, 0ms), transform .9s cubic-bezier(.2, .7, .2, 1) var(--d, 0ms); }
-.reveal.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } .aurora i, .grad, .marq-track { animation: none !important; } }
+.lp-reveal { opacity: 0; transform: translateY(26px); transition: opacity .9s cubic-bezier(.2, .7, .2, 1) var(--d, 0ms), transform .9s cubic-bezier(.2, .7, .2, 1) var(--d, 0ms); }
+.lp-reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .lp-reveal { opacity: 1; transform: none; transition: none; } .aurora i, .grad, .marq-track { animation: none !important; } }
 
 /* ---------- glass + spotlight ---------- */
 .glass { position: relative; border-radius: 20px; background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012)); border: 1px solid rgba(255, 255, 255, .07);
@@ -143,7 +143,7 @@
 .marq-item .mono-label { font-size: 10.5px; } .marq-item em { font-style: normal; color: var(--faint); } .marq-item em.g { color: var(--ok); }
 
 /* ---------- sections ---------- */
-.section { padding: 120px 0; position: relative; }
+.lp .section { padding: 120px 0; position: relative; }
 .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .step-card { padding: 22px 20px 24px; min-height: 210px; } .step-card .n { color: var(--accent); }
 .step-card h3 { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 14px 0 8px; } .step-card p { color: var(--text-2); font-size: 13.5px; margin: 0; }
@@ -196,7 +196,7 @@
 .num2 { padding: 28px 24px; } .num2 .big { font-family: var(--font-display); font-weight: 600; font-size: clamp(48px, 6.2vw, 84px); letter-spacing: -.05em; line-height: 1; } .num2 p { color: var(--muted); margin: 14px 0 0; font-size: 13.5px; }
 .num2.hl .big { background: linear-gradient(100deg, #ffa94d, #ff5d8f); -webkit-background-clip: text; background-clip: text; color: transparent; } .num2.hl { border-color: rgba(255, 169, 77, .3); }
 .proof-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 22px; font-size: 14px; }
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.lp .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 900px) { .numbers2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* trust + terminal */
