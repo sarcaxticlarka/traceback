@@ -43,9 +43,10 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
   const [dim, setDim] = useState({ w: 900, h: 520 })
   const { ns, links } = useMemo(() => (nodes.length ? layout(nodes, edges, nodes.length > 40 ? 420 : 320, dim.w, dim.h) : { ns: [], links: [] }), [nodes, edges, dim.w, dim.h])
   const drag = useRef(null)
+  const boxRef = useRef(null)
   const present = ns.length > 0
   useEffect(() => {
-    const el = svgRef?.current
+    const el = boxRef.current
     if (!el || typeof ResizeObserver === 'undefined') return undefined
     const measure = () => {
       const r = el.getBoundingClientRect()
@@ -57,8 +58,9 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [present, svgRef])
+  }, [present])
   if (!ns.length) return <div className="empty">No evidence to draw yet.</div>
+  const [cx, cy] = [dim.w / 2, dim.h / 2]
   const showEdgeLabels = links.length <= 22
   const firstSeen = new Map()
   links.forEach((e) => {
@@ -83,11 +85,12 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
   const onUp = () => { drag.current = null }
 
   return (
-    <div>
-      <svg ref={svgRef} className="graph" style={{ height: fill ? "100%" : height }} viewBox={`0 0 ${dim.w} ${dim.h}`} key={replayKey} role="img" aria-label="Dependency graph"
+    <div className={fill ? 'gcol fill' : 'gcol'}>
+      <div className="gbox" ref={boxRef} style={fill ? undefined : { height }}>
+      <svg ref={svgRef} className="graph" viewBox={`0 0 ${dim.w} ${dim.h}`} key={replayKey} role="img" aria-label="Dependency graph"
         onWheel={onWheel} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
         <defs><marker id="arrow" viewBox="0 0 10 10" refX="19" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--faint)' }} /></marker></defs>
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.k}) `} style={{ transformOrigin: `${dim.w / 2}px ${dim.h / 2}px` }}>
+        <g transform={`translate(${view.x + cx} ${view.y + cy}) scale(${view.k}) translate(${-cx} ${-cy})`}>
           {links.map((e) => {
             const hl = highlight?.has(e.id) || (selected && (e.source.id === selected || e.target.id === selected))
             const dim = (highlight && highlight.size > 0 && !hl) || (selected && !hl)
@@ -119,6 +122,7 @@ function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, r
           })}
         </g>
       </svg>
+      </div>
       <div className="row between" style={{ marginTop: 8 }}>
         <div className="legend">{kinds.map((l) => <span key={l}><i style={{ background: LABEL_COLORS[l] || '#888' }} />{l}</span>)}</div>
         <span className="faint" style={{ fontSize: 11.5 }}>scroll to zoom · drag to pan{onNode ? ' · click a node' : ''}</span>

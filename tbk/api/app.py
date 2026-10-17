@@ -515,5 +515,8 @@ if _DIST.exists():
 
     @app.get("/{path:path}")
     def spa(path: str):
-        f = _DIST / path
-        return FileResponse(f if f.is_file() else _DIST / "index.html")
+        f = (_DIST / path).resolve()
+        if not (f.is_file() and f.is_relative_to(_DIST.resolve())):
+            f = _DIST / "index.html"
+        # the shell must always revalidate so a stale bundle (old graph CSS/JS) is never served from cache
+        return FileResponse(f, headers={"Cache-Control": "no-cache"})
