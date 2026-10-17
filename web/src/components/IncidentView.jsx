@@ -7,6 +7,7 @@ import { Bar, Empty, GroundedBadge, Pill, fmtTs } from './Common'
 import { LLMBadge } from './LLMSettings'
 import EvidenceDrawer from './EvidenceDrawer'
 import AuditButton from './AuditButton'
+import BundleButton from './BundleButton'
 import Icon from './ui/Icon'
 
 const AGENT_COLOR = { triage: 'blue', investigator: 'ok', remediator: 'warn' }
@@ -148,7 +149,7 @@ export default function IncidentView({ tenant, run, onApproved, label }) {
           )}
         </div>
         <div className="card">
-          <div className="row between" style={{ marginBottom: 10 }}><h3 style={{ margin: 0 }}>Claims · click one to light up its edges</h3>{run.graph_enabled && claims.length > 0 && <AuditButton tenant={tenant} claims={claims} />}</div>
+          <div className="row between" style={{ marginBottom: 10 }}><h3 style={{ margin: 0 }}>Claims · click one to light up its edges</h3>{run.graph_enabled && claims.length > 0 && <span className="row" style={{ gap: 6 }}><BundleButton tenant={tenant} claims={claims} name={`investigation-${run.alert_id}`} label="Bundle" /><AuditButton tenant={tenant} claims={claims} label="Audit" /></span>}</div>
           {claims.length ? <Claims claims={claims} selected={sel} onSelect={(i) => setSel(sel === i ? null : i)} onEvidence={setDrawer} />
             : <div className="empty">No claims (graph disabled).</div>}
         </div>

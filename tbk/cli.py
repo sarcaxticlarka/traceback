@@ -98,6 +98,32 @@ def cmd_impact(a) -> int:
         W.delete(ws.id)
 
 
+def cmd_verify(a) -> int:
+    """Re-check an evidence bundle from the source, with no server, database or LLM involved."""
+    import json
+    from .verify_local import rebuild, verify_bundle
+    bundle = json.loads(Path(a.bundle).read_text())
+    ds, kind, root, notes = rebuild(bundle, a.repo, a.data)
+    rep = verify_bundle(bundle, ds, kind, root, a.show_sources)
+    c = rep["counts"]
+    mark = {"verified": "✓", "mismatch": "✗", "unchecked": "?", "runtime": "~"}
+    print(f"\nBundle {str(rep['bundle_sha256'])[:12]} · source: {bundle['source'].get('label') or bundle['source'].get('tenant')} · {len(rep['claims'])} claims\n")
+    for r in rep["claims"]:
+        print(f" {mark[r['verdict']]} {r['text']}")
+        for d in r["details"]:
+            print(f"      {d}")
+        for line in r.get("sources", []):
+            print(f"      source: {line}")
+    print(f"\n{c['verified']} verified · {c['mismatch']} mismatched · {c['runtime']} run-time only · {c['unchecked']} unchecked")
+    for n in notes:
+        print("note:", n)
+    if a.json:
+        Path(a.json).write_text(json.dumps(rep, indent=1))
+    if tmp := getattr(a, "_tmp", None):
+        shutil.rmtree(tmp, ignore_errors=True)
+    return 0 if c["mismatch"] == 0 else 1
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="tbk")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -110,6 +136,13 @@ def main() -> None:
     p.add_argument("--base", default="origin/main")
     p.add_argument("--head", default="HEAD")
     p.set_defaults(fn=cmd_impact)
+    p = sub.add_parser("verify", help="re-verify an evidence bundle from the source: no server, database or LLM needed")
+    p.add_argument("bundle", help="evidence bundle JSON downloaded from the console")
+    p.add_argument("--repo", help="local folder or GitHub URL of the analysed source (defaults to the URL in the bundle)")
+    p.add_argument("--data", help="your original JSON catalogue (for bundles built from one)")
+    p.add_argument("--show-sources", action="store_true", help="print the raw source line behind each import so you can check by eye")
+    p.add_argument("--json", help="write the full verification report here")
+    p.set_defaults(fn=cmd_verify)
     a = ap.parse_args()
     sys.exit(a.fn(a))
 

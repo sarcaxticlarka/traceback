@@ -287,6 +287,18 @@ def provenance(tenant: str, edge_id: int):
     return p
 
 
+class BundleRequest(BaseModel):
+    tenant: str
+    claims: list[dict]
+
+
+@app.post("/api/evidence-bundle")
+def evidence_bundle(req: BundleRequest):
+    """Structural evidence for claims, so they can be re-verified on the user's own machine (python -m tbk.cli verify)."""
+    from ..evidence import build_bundle
+    return build_bundle(_ctx(req.tenant), req.tenant, req.claims)
+
+
 class AuditRequest(BaseModel):
     tenant: str
     claims: list[dict]

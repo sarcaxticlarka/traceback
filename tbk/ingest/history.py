@@ -89,6 +89,16 @@ def resolve_identities(commits: list[Commit]) -> None:
         c.email = ""                                          # drop raw emails as soon as identities are resolved
 
 
+def head_sha(repo: Path) -> str:
+    """The commit that was analysed, so the analysis can be reproduced exactly."""
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", "HOME": "/nonexistent"}
+    try:
+        out = subprocess.run(["git", "--no-pager", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=15, env=env).stdout.strip()
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return out if re.fullmatch(r"[0-9a-f]{40}", out) else ""
+
+
 def is_bot(name: str) -> bool:
     return bool(BOT.search(name))
 

@@ -16,7 +16,7 @@ from ..verifier import clear_vocabulary_cache
 from . import fetch
 from .analyze import RepoModel, analyze
 from .build import build_dataset
-from .history import read_history
+from .history import head_sha, read_history
 from .limits import MAX_COMMITS
 
 
@@ -31,10 +31,11 @@ def process_tree(wid: str, root: Path, label: str, *, blob_base: str = "", with_
     model: RepoModel = analyze(root)
     if not model.files:
         raise fetch.IngestError("No supported source files found (Python, JS/TS, Go, Java/Kotlin, C/C++, ...).")
-    commits = []
+    commits, sha = [], ""
     if with_history:
         _progress(wid, "history", 50, "Reading git history")
         commits = read_history(root, MAX_COMMITS)
+        sha = head_sha(root)
     _progress(wid, "build", 65, "Building the knowledge graph")
     ds, summary = build_dataset(ws.tenant, label, model, commits, blob_base)
     _progress(wid, "load", 80, "Loading into FalkorDB")
@@ -42,7 +43,7 @@ def process_tree(wid: str, root: Path, label: str, *, blob_base: str = "", with_
     clear_vocabulary_cache(ws.tenant)
     ov = overview(ws.tenant)
     summary.update(graph_nodes=sum(n["n"] for n in ov["nodes"]), graph_edges=ov["edges"], ingest_s=round(time.time() - t0, 1),
-                   skipped=dict(model.skipped), codeowners_path=model.codeowners_path)
+                   skipped=dict(model.skipped), codeowners_path=model.codeowners_path, head_sha=sha, max_commits=MAX_COMMITS)
     d = W.workspace_dir(wid)
     (d / "model.json").write_text(json.dumps(model.to_json()))
     (d / "corpus.json").write_text(json.dumps(model.corpus))

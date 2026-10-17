@@ -128,3 +128,19 @@ def write_uploaded_files(files: list[tuple[str, bytes]], dest: Path) -> int:
     if n == 0:
         raise IngestError("No usable files in the upload.")
     return n
+
+
+def checkout_sha(repo: Path, sha: str, depth: int = CLONE_DEPTH) -> bool:
+    """Pin a clone to the commit that was analysed (fetching it if the shallow clone has moved past it)."""
+    env = {"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", "HOME": "/nonexistent", "GIT_TERMINAL_PROMPT": "0",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+    if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
+        return False
+
+    def git(*a, t=CLONE_TIMEOUT_S):
+        return subprocess.run(["git", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "core.hooksPath=/dev/null",
+                               "--no-pager", "-C", str(repo), *a], capture_output=True, text=True, timeout=t, env=env)
+    if git("cat-file", "-e", f"{sha}^{{commit}}").returncode != 0:
+        if git("fetch", "--depth", str(depth), "--no-tags", "origin", sha).returncode != 0:
+            return False
+    return git("checkout", "--quiet", "--detach", sha).returncode == 0

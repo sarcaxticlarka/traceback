@@ -3,7 +3,7 @@ import { api } from '../api'
 import Icon from '../components/ui/Icon'
 import { Pill } from '../components/Common'
 
-const SECTIONS = [['claims', 'How a claim is made'], ['audit', 'Audit with your key'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
+const SECTIONS = [['claims', 'How a claim is made'], ['audit', 'Audit with your key'], ['local', 'Verify locally'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
 
 function LiveProvenance() {
   const [item, setItem] = useState(null)
@@ -58,6 +58,14 @@ export default function Method() {
             <li>A failed or unparseable audit is reported as <i>unknown</i>, never as support.</li>
             <li>Evidence is passed as data with an instruction to ignore anything inside it, but a model can still be wrong: treat the audit as a cross-check, not a proof.</li>
           </ul>
+        </section>
+
+        <section id="local" className="card">
+          <h3>Verify on your own machine</h3>
+          <p>Every list of claims has an <b>Evidence bundle</b> button. It downloads each claim's facts <i>structurally</i> (relationship, the two entities, the import lines or ownership rule, validity) plus the commit that was analysed. Then, with nothing but Python and git:</p>
+          <pre className="code">{`python -m tbk.cli verify click-evidence.json --show-sources`}</pre>
+          <p>The CLI re-clones the public repo, pins it to the analysed commit, re-runs the same deterministic ingestion in memory and looks up every fact. <b>No TRACEBACK server, no FalkorDB, no LLM.</b> It prints the raw source line behind each import so you can check a sample by eye, and exits non-zero on any mismatch. For your own folder pass <code>--repo ./my-folder</code>; for the demo company it regenerates the data from its fixed seed; for a JSON catalogue pass <code>--data catalogue.json</code>.</p>
+          <p className="muted" style={{ fontSize: 13 }}>What this proves: the claims are reproducible from the source by code you can read. What it can't: that the analyser itself has no bug, which is why the raw lines are shown. Facts created while agents run (incident ids, episodes, PageRank scores) are reported as <i>run-time</i>, not verified.</p>
         </section>
 
         <section id="data" className="card">
