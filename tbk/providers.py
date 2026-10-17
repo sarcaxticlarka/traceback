@@ -33,7 +33,7 @@ PRESETS: dict[str, dict[str, str]] = {
     "openai": {"label": "OpenAI", "model": "gpt-4o-mini", "env": "OPENAI_API_KEY", "base_url": "https://api.openai.com/v1"},
     "gemini": {"label": "Google Gemini", "model": "gemini-2.0-flash", "env": "GEMINI_API_KEY",
                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"},
-    "groq": {"label": "Groq", "model": "llama-3.3-70b-versatile", "env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1"},
+    "groq": {"label": "Groq", "model": "openai/gpt-oss-120b", "env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1"},
     "openrouter": {"label": "OpenRouter", "model": "openrouter/auto", "env": "OPENROUTER_API_KEY",
                    "base_url": "https://openrouter.ai/api/v1"},
     "mistral": {"label": "Mistral", "model": "mistral-small-latest", "env": "MISTRAL_API_KEY", "base_url": "https://api.mistral.ai/v1"},
