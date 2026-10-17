@@ -27,6 +27,7 @@ Paste `https://github.com/owner/repo` on the landing page (or **Analyze your cod
 | **Ask** | "Which modules import `src/api/` directly?", "Who made the most commits to `lib/`?", full blast radius, ... |
 | **Investigate** | The three-agent crew traces a reported regression to the likely commit, owner and reviewers |
 | **Benchmark** | Auto-generated questions about *your* repo, graph agent vs a documents-only baseline |
+| **Export report** | HTML (print to PDF) or Markdown: stats, hotspots, bus factor, criticality, impact, benchmark, all with evidence |
 
 Sources: **GitHub URL** (public repos, read-only shallow clone), **folder / zip** upload (no `.git` is read), or a **JSON
 bundle** exported from your service catalogue, deploy tool and pager. Details, privacy and the CI recipe:
@@ -114,6 +115,7 @@ travel per request, are never stored or logged server-side, and live in the brow
 - **Multi-tenant**: one graph per tenant (demo companies and each upload), isolation proven by a canary test.
 - **MCP server**: all 21 tools for Claude Desktop, Cursor or your own agent, each response carrying its verification.
 - **Safe ingestion**: nothing is executed; zip-slip, symlinks, size bombs, `.git` in uploads, malformed URLs are rejected; per-address rate limit; workspaces deleted after 12 hours.
+- **Graph controls and reports**: zoom in/out, reset, full screen and save-as-SVG on every graph; one-click **reports** for investigations, repository analyses and change impact as a self-contained HTML file (prints to PDF) or Markdown, with the evidence graph embedded.
 - **Kill switch**: a header toggle disables the graph so you can see the product without it (0% verifiable).
 
 ## Technology

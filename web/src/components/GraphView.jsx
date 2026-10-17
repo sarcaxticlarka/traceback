@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Icon from './ui/Icon'
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3-force'
 
 export const LABEL_COLORS = {
@@ -37,9 +38,8 @@ function layout(nodes, edges, ticks) {
  *  highlight: Set of edge ids to emphasise · order: Map edgeId -> traversal index (replay animation)
  *  onNode(node) makes nodes clickable · selected: node id · labels: 'all' | 'top' · sizeBy: 'dependents' to scale by importance
  */
-export default function GraphView({ nodes = [], edges = [], highlight = null, order = null, replayKey = 0, onNode, selected, labels = 'all', sizeBy, height = 520 }) {
+function GraphCanvas({ nodes = [], edges = [], highlight = null, order = null, replayKey = 0, onNode, selected, labels = 'all', sizeBy, height = 520, view, setView, svgRef, fill }) {
   const { ns, links } = useMemo(() => (nodes.length ? layout(nodes, edges, nodes.length > 40 ? 420 : 320) : { ns: [], links: [] }), [nodes, edges])
-  const [view, setView] = useState({ k: 1, x: 0, y: 0 })
   const drag = useRef(null)
   if (!ns.length) return <div className="empty">No evidence to draw yet.</div>
   const showEdgeLabels = links.length <= 22
@@ -54,7 +54,7 @@ export default function GraphView({ nodes = [], edges = [], highlight = null, or
   const neighbors = new Set()
   if (selected) links.forEach((e) => { if (e.source.id === selected) neighbors.add(e.target.id); if (e.target.id === selected) neighbors.add(e.source.id) })
 
-  const onWheel = (e) => { e.preventDefault(); setView((v) => ({ ...v, k: Math.max(.5, Math.min(4, v.k * (e.deltaY < 0 ? 1.12 : 0.89))) })) }
+  const onWheel = (e) => { e.preventDefault(); setView((v) => ({ ...v, k: Math.max(.4, Math.min(6, v.k * (e.deltaY < 0 ? 1.12 : 0.89))) })) }
   // capture the pointer only once it actually drags, otherwise node clicks would be redirected to the svg
   const onDown = (e) => { drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false } }
   const onMove = (e) => {
@@ -67,7 +67,7 @@ export default function GraphView({ nodes = [], edges = [], highlight = null, or
 
   return (
     <div>
-      <svg className="graph" style={{ height }} viewBox={`0 0 ${W} ${H}`} key={replayKey} role="img" aria-label="Dependency graph"
+      <svg ref={svgRef} className="graph" style={{ height: fill ? "100%" : height }} viewBox={`0 0 ${W} ${H}`} key={replayKey} role="img" aria-label="Dependency graph"
         onWheel={onWheel} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
         <defs><marker id="arrow" viewBox="0 0 10 10" refX="19" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--faint)' }} /></marker></defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k}) `} style={{ transformOrigin: '450px 260px' }}>
@@ -108,4 +108,67 @@ export default function GraphView({ nodes = [], edges = [], highlight = null, or
       </div>
     </div>
   )
+}
+
+const clampK = (k) => Math.max(0.4, Math.min(6, k))
+
+/** Graph with a toolbar: zoom in / out / reset, full screen, save as SVG. Pass `containerRef` to let a parent grab the svg (reports). */
+export default function GraphView(props) {
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 })
+  const [full, setFull] = useState(false)
+  const svgRef = useRef(null)
+  const fsSvgRef = useRef(null)
+  useEffect(() => {
+    if (!full) return undefined
+    const onKey = (e) => { if (e.key === 'Escape') setFull(false) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [full])
+  const zoom = (f) => setView((v) => ({ ...v, k: clampK(v.k * f) }))
+  const save = () => {
+    const el = (full ? fsSvgRef : svgRef).current
+    if (!el) return
+    const clone = el.cloneNode(true)
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    const blob = new Blob([svgForExport(clone)], { type: 'image/svg+xml' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = 'traceback-graph.svg'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+  }
+  const bar = (
+    <div className="gtools" role="toolbar" aria-label="Graph controls">
+      <button className="btn ghost icon sm" onClick={() => zoom(1.25)} title="Zoom in" aria-label="Zoom in"><Icon name="plus" size={15} /></button>
+      <button className="btn ghost icon sm" onClick={() => zoom(0.8)} title="Zoom out" aria-label="Zoom out"><Icon name="minus" size={15} /></button>
+      <button className="btn ghost icon sm" onClick={() => setView({ k: 1, x: 0, y: 0 })} title="Reset view" aria-label="Reset view"><Icon name="target" size={15} /></button>
+      <button className="btn ghost icon sm" onClick={save} title="Save as SVG" aria-label="Save as SVG"><Icon name="download" size={15} /></button>
+      <button className="btn ghost icon sm" onClick={() => setFull(!full)} title={full ? 'Exit full screen (Esc)' : 'Full screen'} aria-label="Full screen"><Icon name={full ? 'shrink' : 'expand'} size={15} /></button>
+    </div>
+  )
+  return (
+    <>
+      <div className="gwrap">{bar}<GraphCanvas {...props} view={view} setView={setView} svgRef={svgRef} /></div>
+      {full && (
+        <div className="fs-overlay" role="dialog" aria-label="Graph, full screen">
+          <div className="fs-head"><b>Graph</b><span className="muted"> · scroll to zoom, drag to pan, Esc to close</span><span className="spacer" style={{ flex: 1 }} />{bar}
+            <button className="btn quiet icon sm" onClick={() => setFull(false)} aria-label="Close"><Icon name="x" size={16} /></button></div>
+          <div className="fs-body"><GraphCanvas {...props} view={view} setView={setView} svgRef={fsSvgRef} fill /></div>
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Make a standalone SVG: resolve CSS variables to literal colours and drop animation state. */
+export function svgForExport(svg) {
+  const cs = getComputedStyle(document.documentElement)
+  const v = (name) => cs.getPropertyValue(name).trim()
+  svg.querySelectorAll('.reveal').forEach((n) => { n.classList.remove('reveal'); n.style.animationDelay = ''; n.style.opacity = '' })
+  const css = `.edge{stroke:${v('--line-2')};stroke-width:1.2;fill:none}.edge.hl{stroke:${v('--accent')};stroke-width:2.6}.edge.dim{opacity:.2}` +
+    `.node text{fill:${v('--text')};font:10.5px sans-serif;paint-order:stroke;stroke:${v('--bg-elev')};stroke-width:3px}`
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  style.textContent = css
+  svg.insertBefore(style, svg.firstChild)
+  svg.setAttribute('style', `background:${v('--bg-elev')}`)
+  const out = new XMLSerializer().serializeToString(svg)
+  return out.replace(/var\((--[a-z0-9-]+)\)/g, (_, n) => v(n) || '#888')
 }

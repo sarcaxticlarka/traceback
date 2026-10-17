@@ -6,7 +6,7 @@ import Icon from '../components/ui/Icon'
 import { Pill, Spinner } from '../components/Common'
 
 export default function Investigate({ embedded = false }) {
-  const { tenant, graphOn, useLlm, userKeys, bumpMemory } = useApp()
+  const { tenant, graphOn, useLlm, userKeys, bumpMemory, workspaces } = useApp()
   const [alerts, setAlerts] = useState([])
   const [active, setActive] = useState(null)
   const [run, setRun] = useState(null)
@@ -62,7 +62,7 @@ export default function Investigate({ embedded = false }) {
               </div>
             </div>
           )}
-          {!busy && <IncidentView tenant={tenant} run={run} onApproved={() => go()} />}
+          {!busy && <IncidentView tenant={tenant} run={run} onApproved={() => go()} label={repo ? (workspaces.find((w) => w.tenant === tenant)?.label || tenant) : `${tenant} (synthetic demo)`} />}
         </div>
       </div>
     </div>

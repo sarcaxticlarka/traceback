@@ -6,6 +6,8 @@ import SourceForm from '../components/SourceForm'
 import GraphView from '../components/GraphView'
 import AskView from '../components/AskView'
 import EvidenceDrawer from '../components/EvidenceDrawer'
+import ReportMenu from '../components/ReportMenu'
+import { repoMarkdown, repoReport } from '../lib/report'
 import Investigate from './Investigate'
 import Icon from '../components/ui/Icon'
 import { Bar, Empty, GroundedBadge, GroupedBars, Pill, Spinner, Stat, fmtNum } from '../components/Common'
@@ -61,6 +63,16 @@ function ToolCard({ title, tenant, tool, args, onEvidence, hint }) {
         : claims.length ? <div className="scroll" style={{ maxHeight: 380, marginTop: 8 }}><ClaimRows claims={claims} onEvidence={onEvidence} /></div> : <Empty icon="check">Nothing notable found.</Empty>}
     </div>
   )
+}
+
+/** Gather everything a repository report needs (verified tool results), then render HTML + Markdown. */
+async function buildRepoReport(ws, extra = {}) {
+  const t = (tool, args) => api.tool(ws.tenant, tool, args).catch(() => null)
+  const [hotspots, bus, crit, choke, modules, benchmark] = await Promise.all([
+    t('hotspots', { top: 10 }), t('bus_factor', { top: 10 }), t('criticality', { top: 8 }), t('single_points_of_failure', { top: 8 }),
+    api.wsModules(ws.id).catch(() => []), api.wsBenchmarkCached(ws.id).catch(() => null)])
+  const data = { hotspots, bus, crit, choke, modules, benchmark, ...extra }
+  return { html: repoReport(ws, data), md: repoMarkdown(ws, data), name: `analysis-${ws.label}` }
 }
 
 function Overview({ ws, onEvidence, onDelete }) {
@@ -191,6 +203,7 @@ function ImpactTab({ ws, onEvidence }) {
             <div className="row" style={{ marginTop: 14 }}>
               <button className="btn ghost sm" onClick={() => { navigator.clipboard.writeText(impactMarkdown(row, claims)); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>
                 <Icon name="download" size={13} /> {copied ? 'Copied' : 'Copy as PR comment'}</button>
+              <ReportMenu label="Impact report" build={() => buildRepoReport(ws, { impact: { row, claims } })} />
               <span className="muted" style={{ fontSize: 12 }}>The risk score is a transparent heuristic (impacted modules, churn, single-author code); the evidence on the right is verified.</span>
             </div>
           </div>
@@ -253,6 +266,7 @@ function Analysis({ ws, onDelete }) {
       <div className="row between" style={{ marginBottom: 14 }}>
         <div className="row"><h2 style={{ fontSize: 20 }}>{ws.label}</h2><Pill kind="ok">ready</Pill><Pill mono>{ws.tenant}</Pill>
           {ws.url && <a href={ws.url} target="_blank" rel="noreferrer" className="chip blue"><Icon name="external" size={12} /> GitHub</a>}</div>
+        <ReportMenu label="Export report" build={() => buildRepoReport(ws)} />
       </div>
       <nav className="tabs">{tabs.map(([k, ic, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}><Icon name={ic} size={14} />{l}</button>)}</nav>
       {tab === 'overview' && <Overview ws={ws} onEvidence={setDrawer} onDelete={onDelete} />}

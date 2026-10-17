@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
-import GraphView from './GraphView'
+import GraphView, { svgForExport } from './GraphView'
+import ReportMenu from './ReportMenu'
+import { investigationMarkdown, investigationReport } from '../lib/report'
 import { Bar, Empty, GroundedBadge, Pill, fmtTs } from './Common'
 import { LLMBadge } from './LLMSettings'
 import EvidenceDrawer from './EvidenceDrawer'
@@ -57,7 +59,8 @@ function Timeline({ agents }) {
   )
 }
 
-export default function IncidentView({ tenant, run, onApproved }) {
+export default function IncidentView({ tenant, run, onApproved, label }) {
+  const graphBox = useRef(null)
   const [sub, setSub] = useState({ nodes: [], edges: [] })
   const [sel, setSel] = useState(null)
   const [replayKey, setReplayKey] = useState(0)
@@ -114,6 +117,11 @@ export default function IncidentView({ tenant, run, onApproved }) {
           <LLMBadge info={run.llm} />
           {run.incident_id && <Pill>{run.incident_id}</Pill>}
           <Pill>{run.ms} ms</Pill>
+          <span style={{ marginLeft: 'auto' }}><ReportMenu label="Report" build={async () => {
+            const el = graphBox.current?.querySelector('svg.graph')
+            const opts = { label, svg: el ? svgForExport(el.cloneNode(true)) : '' }
+            return { html: investigationReport(run, opts), md: investigationMarkdown(run, opts), name: `investigation-${run.alert_id}` }
+          }} /></span>
         </div>
       </div>
 
@@ -126,7 +134,7 @@ export default function IncidentView({ tenant, run, onApproved }) {
               <button className="btn ghost" onClick={inject} disabled={!run.graph_enabled}>Inject hallucination</button>
             </div>
           </div>
-          {run.graph_enabled ? <GraphView nodes={sub.nodes} edges={sub.edges} highlight={highlight} order={order} replayKey={replayKey} />
+          {run.graph_enabled ? <div ref={graphBox}><GraphView nodes={sub.nodes} edges={sub.edges} highlight={highlight} order={order} replayKey={replayKey} /></div>
             : <div className="empty">No graph, no evidence to draw.</div>}
           {probe && (
             <div style={{ marginTop: 10 }}>
