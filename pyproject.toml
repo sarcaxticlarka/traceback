@@ -1,0 +1,20 @@
+[project]
+name = "traceback-agents"
+version = "0.1.0"
+description = "TRACEBACK: incident-response agents whose context, memory and coordination live in FalkorDB"
+requires-python = ">=3.11"
+dependencies = ["falkordb", "fastapi", "uvicorn[standard]", "pydantic", "numpy", "httpx", "mcp", "anthropic"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tbk", "tbk.seed", "tbk.tools", "tbk.agents", "tbk.api", "tbk.evalx"]
