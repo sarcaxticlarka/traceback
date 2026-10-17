@@ -7,7 +7,7 @@ claim it cannot confirm** ("no path, no claim").
 *Built for Graph Hacks: Context for AI Agents (FalkorDB × WeMakeDevs).*
 **Tracks entered:** Agents That Act on Connected Data · Agent Memory and Coordination · Company Brain
 
-![console](docs/screenshot-incident.png)
+![console](docs/screenshot-incident.jpg)
 
 ## What it does
 
