@@ -28,6 +28,8 @@ Base: `http://localhost:8765`. `tenant` is `helix` or `orbit`.
 | `POST /api/impact` `{tenant, sha or modules}` | Change impact: touched, impacted, owners, reviewers, risk |
 | `GET /api/provenance?tenant=&edge_id=` | Why an edge exists: basis, import sites, ownership rule |
 | `GET /api/bench/real` | Real-repo benchmark results |
+| `POST /api/evidence-bundle` `{tenant, claims}` | Structural evidence bundle for `python -m tbk.cli verify` (no server needed to check it) |
+| `POST /api/db/test` + `X-FalkorDB` | Test a user-supplied FalkorDB connection (never echoes the password) |
 | `POST /api/audit` `{tenant, claims}` + `X-LLM-Providers` | Independent audit by the caller's own LLM key(s); 400 without one (server keys are not used) |
 | `GET /api/tools` | Tool catalog with Cypher refs |
 | `POST /api/admin/reseed?tenant=` | Reset a tenant to the seed data |
@@ -39,6 +41,13 @@ Base: `http://localhost:8765`. `tenant` is `helix` or `orbit`.
 Providers: `anthropic`, `openai`, `gemini`, `groq`, `openrouter`, `mistral`, `deepseek`, `custom` (needs
 `TBK_ALLOW_CUSTOM_BASE_URL=1`). `use_llm`: `true` use them, `null` auto (user keys, then server keys, else offline),
 `false` never. The response's `llm` field lists the provider that answered and every failover (never keys).
+
+## Bringing your own FalkorDB
+
+Send `X-FalkorDB: base64({"host","port","password","ssl"})` on any `/api/*` request and that request runs against *your* database
+(validated: private/loopback/metadata addresses are refused unless `TBK_ALLOW_PRIVATE_DB=1`). Creating a workspace with the header stores
+its graph there and marks it `byo_db`; later requests for it must carry the header too (otherwise `409`, so nothing is ever created in
+the wrong database).
 
 ## MCP
 

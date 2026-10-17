@@ -288,7 +288,7 @@ function Analysis({ ws, onDelete }) {
 }
 
 export default function Lab({ query }) {
-  const { workspaces, addWorkspace, removeWorkspace } = useApp()
+  const { workspaces, addWorkspace, removeWorkspace, db, byoReady, openDb } = useApp()
   const [activeId, setActiveId] = useState(query.ws || null)
   const ws = workspaces.find((w) => w.id === activeId)
   useEffect(() => { if (!activeId && workspaces.length) setActiveId(workspaces[0].id) }, [workspaces.length])
@@ -307,14 +307,16 @@ export default function Lab({ query }) {
       {workspaces.length > 0 && (
         <div className="row" style={{ marginBottom: 12 }}>{workspaces.map((w) => (
           <button key={w.id} className={`chip ${activeId === w.id ? 'accent' : ''}`} style={{ height: 28, cursor: 'pointer' }} onClick={() => setActiveId(w.id)}>
-            {w.status === 'running' || w.status === 'queued' ? <Spinner /> : <Icon name={w.status === 'error' ? 'alert' : 'folder'} size={12} />} {w.label}</button>))}
+            {w.status === 'running' || w.status === 'queued' ? <Spinner /> : <Icon name={w.status === 'error' ? 'alert' : w.byo_db ? 'database' : 'folder'} size={12} />} {w.label}</button>))}
           <button className="chip" style={{ height: 28, cursor: 'pointer' }} onClick={() => setActiveId(null)}>+ New</button></div>)}
       {autoErr && <div className="banner">{autoErr}</div>}
+      {db.enabled && db.host && (!ws || !activeId) && <div className="banner ok" style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Icon name="database" size={15} /><span>New analyses will be stored in <b>your FalkorDB</b> at <code>{db.host}:{db.port}</code>, not on our server.</span><button className="btn quiet sm" onClick={openDb}>Change</button></div>}
       {(!ws || !activeId) && <SourceForm initialUrl={query.repo || ''} onCreated={created} />}
       {ws && ws.status !== 'ready' && ws.status !== 'error' && <div style={{ marginTop: 12 }}><Progress ws={ws} /></div>}
       {ws && ws.status === 'error' && <div style={{ marginTop: 12 }}><div className="banner"><b>Couldn't analyse {ws.label}.</b> {ws.error}</div>
         <button className="btn ghost" onClick={() => { removeWorkspace(ws.id); setActiveId(null) }}>Try another</button></div>}
-      {ws && ws.status === 'ready' && <Analysis ws={ws} onDelete={del} />}
+      {ws && ws.status === 'ready' && ws.byo_db && !byoReady && <div className="banner info"><b>This analysis lives in your own FalkorDB</b> ({ws.db_host}). Connect it to open it. <button className="btn sm" style={{ marginLeft: 8 }} onClick={openDb}>Connect</button></div>}
+      {ws && ws.status === 'ready' && !(ws.byo_db && !byoReady) && <Analysis ws={ws} onDelete={del} />}
     </div>
   )
 }

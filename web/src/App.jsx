@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from './api'
+import { api, setByo } from './api'
 import { AppCtx, isRepo } from './lib/ctx'
 import { go, useRoute } from './lib/router'
 import { useTheme } from './lib/theme'
@@ -9,6 +9,7 @@ import Lab from './pages/Lab'
 import Method from './pages/Method'
 import { AskPage, MemoryPage, ProofPage } from './pages/Simple'
 import LLMSettings, { loadLLM } from './components/LLMSettings'
+import DbSettings, { loadDb } from './components/DbSettings'
 import Icon from './components/ui/Icon'
 import Logo from './components/ui/Logo'
 import { Pill } from './components/Common'
@@ -45,16 +46,24 @@ export default function App() {
   const [llmOpen, setLlmOpen] = useState(false)
   const [memKey, setMemKey] = useState(0)
   const [menu, setMenu] = useState(false)
+  const [db, setDb] = useState(loadDb)
+  const [dbOpen, setDbOpen] = useState(false)
   const wsApi = useWorkspaces()
 
   useEffect(() => { api.health().then(setHealth).catch(() => setHealth({ ok: false })) }, [])
   useEffect(() => { setMenu(false) }, [route.path])
   useEffect(() => { if (isRepo(tenant) && !wsApi.workspaces.some((w) => w.tenant === tenant && w.status === 'ready') && wsApi.workspaces.length) setTenant('helix') }, [wsApi.workspaces])
 
+  const byoReady = !!db.host
+  // Tell the API layer where each dataset lives *during render*, not in an effect: child effects (e.g. the lab auto-starting an analysis
+  // from ?repo=) run before this component's own effects, and a request sent too early would go to the shared server instead of the
+  // user's database.
+  const mine = wsApi.workspaces.filter((w) => w.byo_db)
+  setByo(byoReady ? db : null, db.enabled, mine.map((w) => w.tenant), mine.map((w) => w.id))
   const userKeys = llm.configs.filter((c) => c.api_key)
   const useLlm = !llm.enabled ? false : userKeys.length ? true : null
-  const ctx = useMemo(() => ({ tenant, setTenant, graphOn, useLlm, userKeys, memKey, openLlm: () => setLlmOpen(true), bumpMemory: () => setMemKey((k) => k + 1), ...wsApi, theme }),
-    [tenant, graphOn, useLlm, llm, memKey, wsApi.workspaces, theme.dark])
+  const ctx = useMemo(() => ({ tenant, setTenant, graphOn, useLlm, userKeys, memKey, openLlm: () => setLlmOpen(true), openDb: () => setDbOpen(true), db, byoReady, bumpMemory: () => setMemKey((k) => k + 1), ...wsApi, theme }),
+    [tenant, graphOn, useLlm, llm, memKey, wsApi.workspaces, theme.dark, db])
 
   if (route.path === '/' || route.path === '') return <AppCtx.Provider value={ctx}><Landing theme={theme} /></AppCtx.Provider>
 
@@ -71,7 +80,7 @@ export default function App() {
             <label htmlFor="ws">Dataset</label>
             <select id="ws" value={tenant} onChange={(e) => setTenant(e.target.value)}>
               <optgroup label="Demo company (synthetic)">{(health?.tenants || ['helix', 'orbit']).map((t) => <option key={t} value={t}>{t}</option>)}</optgroup>
-              {ready.length > 0 && <optgroup label="Your repositories">{ready.map((w) => <option key={w.id} value={w.tenant}>{w.label}</option>)}</optgroup>}
+              {ready.length > 0 && <optgroup label="Your repositories">{ready.map((w) => <option key={w.id} value={w.tenant} disabled={w.byo_db && !byoReady}>{w.label}{w.byo_db ? ' · your DB' : ''}</option>)}</optgroup>}
             </select>
           </div>
           <nav className="nav">
@@ -80,6 +89,7 @@ export default function App() {
             <a href="#/"><Icon name="target" size={16} />Overview</a>
           </nav>
           <div className="side-foot">
+            <button className="btn ghost sm" onClick={() => setDbOpen(true)} title="Where new analyses are stored"><Icon name="database" size={14} />Data: {db.enabled && db.host ? 'your FalkorDB' : 'shared server'}</button>
             <button className="btn ghost sm" onClick={() => setLlmOpen(true)}><Icon name="key" size={14} />LLM: {llmLabel}</button>
             <button className="btn quiet sm" onClick={theme.toggle}><Icon name={theme.dark ? 'sun' : 'moon'} size={14} />{theme.dark ? 'Light' : 'Dark'} theme</button>
           </div>
@@ -103,6 +113,7 @@ export default function App() {
             {page === 'method' && <Method />}
           </main>
         </div>
+        <DbSettings open={dbOpen} onClose={() => setDbOpen(false)} db={db} setDb={setDb} privateAllowed={health?.byo_private_allowed} />
         <LLMSettings open={llmOpen} onClose={() => setLlmOpen(false)} llm={llm} setLlm={setLlm} />
       </div>
     </AppCtx.Provider>

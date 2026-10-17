@@ -1,6 +1,7 @@
 """End-to-end ingestion: fetch -> analyze -> history -> build graph -> load into FalkorDB -> persist model."""
 from __future__ import annotations
 
+import contextvars
 import json
 import shutil
 import threading
@@ -89,7 +90,7 @@ def start_github(url: str) -> W.Workspace:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    threading.Thread(target=_run, args=(ws.id, work), daemon=True).start()
+    threading.Thread(target=contextvars.copy_context().run, args=(_run, ws.id, work), daemon=True).start()
     return ws
 
 
@@ -108,7 +109,7 @@ def start_upload(label: str, *, zip_bytes: bytes | None = None, files: list[tupl
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    threading.Thread(target=_run, args=(ws.id, work), daemon=True).start()
+    threading.Thread(target=contextvars.copy_context().run, args=(_run, ws.id, work), daemon=True).start()
     return ws
 
 
@@ -138,7 +139,7 @@ def start_bundle(data: dict, label: str = "bundle") -> W.Workspace:
         summary.update(graph_nodes=sum(n["n"] for n in ov["nodes"]), graph_edges=ov["edges"], ingest_s=0.0, skipped={})
         return summary
 
-    threading.Thread(target=_run, args=(ws.id, work), daemon=True).start()
+    threading.Thread(target=contextvars.copy_context().run, args=(_run, ws.id, work), daemon=True).start()
     return ws
 
 

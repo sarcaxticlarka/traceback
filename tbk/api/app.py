@@ -11,7 +11,8 @@ import base64
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -21,7 +22,8 @@ from ..agents.qa import answer_question
 from ..config import DATA_DIR, NOW, ROOT, get_settings
 from ..evalx.baseline_reader import read_answer
 from ..graph import get_store
-from .. import providers
+from .. import byo_db, providers
+from ..graph import use_store
 from ..seed.generate import get_dataset
 from ..seed.load import load_dataset
 from ..switches import graph_switch
@@ -35,9 +37,34 @@ _RUNS: "OrderedDict[str, dict]" = OrderedDict()
 _RUNS_LOCK = threading.Lock()
 
 
+@app.middleware("http")
+async def byo_db_middleware(request: Request, call_next):
+    """If the caller sends X-FalkorDB, run this whole request against *their* database (validated, in memory only)."""
+    hdr = request.headers.get("x-falkordb")
+    if not hdr or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    try:
+        target = byo_db.parse_header(hdr)
+        store = await run_in_threadpool(byo_db.store_for, target)
+    except ValueError as e:
+        return JSONResponse({"detail": f"FalkorDB connection refused: {e}"}, status_code=400)
+    token = byo_db.set_target(target)
+    try:
+        with use_store(store):
+            return await call_next(request)
+    finally:
+        byo_db.reset_target(token)
+
+
 def _tenant(t: str) -> str:
     if not W.known_tenant(t):
         raise HTTPException(404, f"unknown tenant or expired workspace {t!r}")
+    ws = W.by_tenant(t)
+    # never let a request land on the wrong database: that could create stray graphs in either one
+    if ws is not None and ws.byo_db and not byo_db.active():
+        raise HTTPException(409, "This workspace is stored in your own FalkorDB. Connect it (Data button) to open it.")
+    if (ws is None or not ws.byo_db) and byo_db.active():
+        raise HTTPException(409, "This dataset lives on the shared server; your FalkorDB connection does not apply to it.")
     return t
 
 
@@ -96,7 +123,7 @@ def health():
         return {"ok": False, "error": str(e)}
     s = get_settings()
     return {"ok": ok, "tenants": s.tenants, "llm": bool(providers.env_configs()), "llm_model": ", ".join(c.provider for c in providers.env_configs()) or None,
-            "now": NOW, "graphs": sorted(g for g in get_store().db.list_graphs() if g.startswith("t_"))}
+            "now": NOW, "byo_db": True, "byo_private_allowed": byo_db.allow_private(), "graphs": sorted(g for g in get_store().db.list_graphs() if g.startswith("t_"))}
 
 
 @app.get("/api/llm/providers")
@@ -122,6 +149,16 @@ def llm_test(x_llm_providers: str | None = Header(default=None)):
         except ValueError as e:
             out.append({"provider": cfg.provider, "ok": False, "kind": "config", "error": str(e)})
     return out
+
+
+@app.post("/api/db/test")
+def db_test():
+    """Check a user-supplied FalkorDB connection (X-FalkorDB header). Never echoes the password."""
+    t = byo_db.current_target()
+    if t is None:
+        raise HTTPException(400, "Send your connection in the X-FalkorDB header.")
+    from ..graph import get_store
+    return byo_db.test_connection(get_store(), t)
 
 
 @app.get("/api/tools")

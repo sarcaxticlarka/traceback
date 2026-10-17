@@ -280,3 +280,16 @@ def test_workspaces_expire_and_are_capped(monkeypatch):
     W.update(w.id, created=time.time() - 10 * 86400)
     W.cleanup()
     assert W.get(w.id) is None
+
+
+def test_registry_is_shared_across_processes(tmp_path):
+    """A second process (another worker, a CLI) deleting a workspace must be visible here, and writes must not resurrect it."""
+    import subprocess
+    import sys
+    w = W.create("probe", "upload")
+    code = f"from tbk import workspaces as W; assert W.get('{w.id}') is not None; W.delete('{w.id}')"
+    subprocess.run([sys.executable, "-c", code], check=True, cwd=str(Path(__file__).resolve().parent.parent))
+    assert W.get(w.id) is None
+    other = W.create("another", "upload")                 # a later write here must not bring the deleted one back
+    assert W.get(w.id) is None
+    W.delete(other.id)

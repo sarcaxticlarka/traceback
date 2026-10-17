@@ -87,10 +87,19 @@ jobs:
 The comment lists the modules the PR touches, how many modules depend on them, owners, suggested reviewers,
 risk factors, and a collapsed list of verified evidence.
 
+## Keeping the data on your side
+
+| You want | Do this |
+|---|---|
+| Nothing to leave your network | Self-host: `docker compose up` (needs only an optional LLM provider and cloning public URLs) |
+| Our server to analyse, but your database to hold the graph | **Data** button: your FalkorDB host/port/password/TLS. New analyses are written there; our DB never receives them. The server must reach it over the public internet (private/loopback/metadata addresses are blocked on a public server). |
+| To not trust our results | **Evidence bundle** + `python -m tbk.cli verify bundle.json --show-sources` on your own machine; or **Audit with my key** for a second opinion from your own LLM |
+
 ## Privacy and retention (public demo)
 
 - Public repos only through the URL path; uploads are analysed in memory-and-disk for the duration of ingestion, then the
   working tree is deleted. The *graph* (names, edges, commit subjects, doc text) is kept 12 hours or until you delete it.
+- With *your own FalkorDB* the graph is stored there; our registry keeps only the workspace id, label, stats and `host:port` (never the password). Deleting while connected drops the graph from your database; automatic expiry removes only our record.
 - Each workspace is an unguessable id and its own graph; the server never lists workspaces to other browsers.
 - LLM keys you supply are sent per request, used once, never stored or logged server-side.
 - Run it yourself (`docker compose up`) if your code can't leave your network: nothing needs the internet except an

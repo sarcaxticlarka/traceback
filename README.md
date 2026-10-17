@@ -103,7 +103,11 @@ Mistral, DeepSeek, local Ollama) has three narrow jobs: choose which tool to cal
 calling the same tools, and polish claim wording, after which the verifier rejects any added entity. It never decides what
 is *true*, and it receives tool results (module names, authors, commit subjects, short doc snippets), not your source files.
 
-**Don't trust us? Audit with your own key.** Press *Audit with my key* next to any claims: your model gets only each claim and its evidence (edges, import lines, ownership rule) and says supported / partial / unsupported. It uses your key only (never the server's), is shown beside the verifier and never overrides it, and disagreements are listed first.
+**Don't trust us? Three independent ways to check.**
+
+1. **Verify on your own machine, no server involved.** *Evidence bundle* downloads each claim's facts structurally plus the analysed commit. `python -m tbk.cli verify bundle.json --show-sources` re-clones the repo pinned to that commit, re-derives every fact in memory and compares, printing the raw source line behind each import. No TRACEBACK server, no FalkorDB, no LLM; non-zero exit on any mismatch. (On pallets/click: 23 of 23 claims reproduced.)
+2. **Keep your data on your own FalkorDB.** Connect FalkorDB Cloud or your own server (**Data** button): new analyses are written *there*, never to our database; the connection is per-request and in memory only; private/loopback/metadata addresses are refused on a public server (`TBK_ALLOW_PRIVATE_DB=1` when self-hosting). Deleting while connected also removes the graph from your database.
+3. **Audit with your own key.** Press *Audit with my key* next to any claims: your model gets only each claim and its evidence (edges, import lines, ownership rule) and says supported / partial / unsupported. It uses your key only (never the server's), is shown beside the verifier and never overrides it, and disagreements are listed first.
 
 **Bring your own keys, with failover.** If every provider fails, the investigation still completes with the built-in playbook. Add several providers in the console (**LLM** button); if one hits a rate limit, runs
 out of quota, is overloaded or rejects the key, the next takes over mid-investigation and the UI shows which answered. Keys
@@ -134,7 +138,7 @@ travel per request, are never stored or logged server-side, and live in the brow
 | **Anthropic SDK, httpx** (optional) | Claude and OpenAI-compatible providers with failover |
 | **NumPy** | Dense/sparse retrieval for the documents-only baseline |
 | **React 18, Vite, d3-force, fflate** | Console: landing, analysis lab, evidence graph (plain SVG), in-browser folder zipping |
-| **Docker / Compose**, **pytest** (75 tests) | Packaging, verification |
+| **Docker / Compose**, **pytest** (105 tests) | Packaging, verification |
 
 ## Setup
 
@@ -155,9 +159,12 @@ Or everything in containers: `docker compose up --build`.
 |---|---|---|
 | `FALKORDB_HOST` / `PORT` / `PASSWORD` | `localhost` / `6390` / none | FalkorDB connection (FalkorDB Cloud works) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | none | Server-side default LLM providers (used after the user's own keys) |
+| `TBK_ALLOW_PRIVATE_DB` | off | `1` lets users point "bring your own FalkorDB" at private/loopback addresses (self-hosting). Off on public servers (SSRF guard) |
 | `TBK_ALLOW_CUSTOM_BASE_URL` | off | `1` lets users add a custom OpenAI-compatible endpoint (e.g. local Ollama) |
 | `TBK_WORKSPACE_TTL_H`, `TBK_MAX_WORKSPACES`, `TBK_INGESTS_PER_HOUR` | 12 / 25 / 8 | Retention and abuse limits for uploaded workspaces |
 | `TBK_MAX_UPLOAD_MB`, `TBK_MAX_TREE_MB`, `TBK_MAX_FILES`, `TBK_MAX_COMMITS`, `TBK_CLONE_TIMEOUT` | 100 / 250 / 25000 / 1500 / 150 | Ingestion limits |
+
+The bring-your-own-FalkorDB end-to-end tests need a second FalkorDB: `docker run -d -p 6391:6379 falkordb/falkordb` (they skip without it).
 
 Everyday commands: `make test` · `make eval` · `make bench` · `make bench-real` · `make queries` · `make mcp` · `make cli-demo`.
 

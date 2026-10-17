@@ -3,7 +3,7 @@ import { api } from '../api'
 import Icon from '../components/ui/Icon'
 import { Pill } from '../components/Common'
 
-const SECTIONS = [['claims', 'How a claim is made'], ['audit', 'Audit with your key'], ['local', 'Verify locally'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
+const SECTIONS = [['claims', 'How a claim is made'], ['audit', 'Audit with your key'], ['local', 'Verify locally'], ['byo', 'Your own FalkorDB'], ['data', 'Where the data comes from'], ['live', 'Live provenance'], ['bench', 'How we benchmark'], ['ai', 'What the AI does'], ['safety', 'Safety of ingestion'], ['limits', 'Limitations']]
 
 function LiveProvenance() {
   const [item, setItem] = useState(null)
@@ -66,6 +66,16 @@ export default function Method() {
           <pre className="code">{`python -m tbk.cli verify click-evidence.json --show-sources`}</pre>
           <p>The CLI re-clones the public repo, pins it to the analysed commit, re-runs the same deterministic ingestion in memory and looks up every fact. <b>No TRACEBACK server, no FalkorDB, no LLM.</b> It prints the raw source line behind each import so you can check a sample by eye, and exits non-zero on any mismatch. For your own folder pass <code>--repo ./my-folder</code>; for the demo company it regenerates the data from its fixed seed; for a JSON catalogue pass <code>--data catalogue.json</code>.</p>
           <p className="muted" style={{ fontSize: 13 }}>What this proves: the claims are reproducible from the source by code you can read. What it can't: that the analyser itself has no bug, which is why the raw lines are shown. Facts created while agents run (incident ids, episodes, PageRank scores) are reported as <i>run-time</i>, not verified.</p>
+        </section>
+
+        <section id="byo" className="card">
+          <h3>Keep your data on your own FalkorDB</h3>
+          <p>Use the <b>Data</b> button to connect a FalkorDB you run (FalkorDB Cloud, a VM). New analyses are then written <i>there</i>: the graph (module names, edges, commit subjects, doc text) never touches our database. The connection travels with each request, lives in memory for that request, and is never stored or logged here; only <code>host:port</code> is remembered so we can show where a workspace lives.</p>
+          <ul style={{ margin: 0, paddingLeft: 18 }} className="stack">
+            <li>Requests for a workspace in your database without your connection are refused (never silently answered from, or written to, the wrong database).</li>
+            <li>On a public server, private, loopback and cloud-metadata addresses are rejected so this can't probe our network. Self-hosting can allow them.</li>
+            <li>Deleting a workspace while connected removes its graph from your database; automatic expiry removes only our record.</li>
+          </ul>
         </section>
 
         <section id="data" className="card">

@@ -10,6 +10,8 @@ import os
 import re
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from falkordb import FalkorDB
@@ -44,7 +46,8 @@ class GraphStore:
             with self._lock:
                 if self._db is None:
                     s = self.settings
-                    self._db = FalkorDB(host=s.falkor_host, port=s.falkor_port, password=s.falkor_password)
+                    self._db = FalkorDB(host=s.falkor_host, port=s.falkor_port, password=s.falkor_password, ssl=s.falkor_ssl,
+                                        socket_connect_timeout=5, socket_timeout=30)
         return self._db
 
     def graph(self, tenant: str):
@@ -84,9 +87,27 @@ class GraphStore:
 
 
 _store: GraphStore | None = None
+_scoped: ContextVar[GraphStore | None] = ContextVar("tbk_scoped_store", default=None)
+
+
+@contextmanager
+def use_store(store: GraphStore | None):
+    """Run a block (one request) against a different FalkorDB, e.g. the user's own. Everything that calls get_store() follows."""
+    token = _scoped.set(store)
+    try:
+        yield store
+    finally:
+        _scoped.reset(token)
+
+
+def scoped_store() -> GraphStore | None:
+    return _scoped.get()
 
 
 def get_store() -> GraphStore:
+    sc = _scoped.get()
+    if sc is not None:
+        return sc
     global _store
     if _store is None:
         _store = GraphStore()

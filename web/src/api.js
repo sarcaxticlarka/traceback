@@ -1,4 +1,25 @@
-const j = async (url, opts) => {
+/* ---- bring your own FalkorDB: the connection travels per request, only for datasets that live in the user's database ---- */
+let byoConn = null            // {host, port, password, ssl} while the user has one configured
+let byoUseForNew = false      // "store new analyses in my FalkorDB"
+let byoTenants = new Set()
+let byoIds = new Set()
+export const setByo = (conn, useForNew, tenants, ids) => { byoConn = conn; byoUseForNew = !!useForNew; byoTenants = new Set(tenants); byoIds = new Set(ids) }
+const byoHeader = (conn) => ({ 'X-FalkorDB': btoa(JSON.stringify({ host: conn.host, port: Number(conn.port) || 6379, password: conn.password || '', ssl: !!conn.ssl })) })
+function byoFor(url, opts) {
+  if (!byoConn) return null
+  const u = new URL(url, window.location.origin)
+  if (/^\/api\/workspaces\/(github|upload|bundle)$/.test(u.pathname)) return byoUseForNew ? byoHeader(byoConn) : null
+  const tenant = u.searchParams.get('tenant')
+  if (tenant && byoTenants.has(tenant)) return byoHeader(byoConn)
+  const m = u.pathname.match(/^\/api\/workspaces\/([0-9a-f]{8})/)
+  if (m && byoIds.has(m[1])) return byoHeader(byoConn)
+  if (typeof opts?.body === 'string') { try { if (byoTenants.has(JSON.parse(opts.body).tenant)) return byoHeader(byoConn) } catch { /* not json */ } }
+  return null
+}
+
+const j = async (url, opts = {}) => {
+  const extra = byoFor(url, opts)
+  if (extra) opts = { ...opts, headers: { ...(opts.headers || {}), ...extra } }
   const r = await fetch(url, opts)
   if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`)
   return r.json()
@@ -38,6 +59,7 @@ export const api = {
   alerts: (tenant) => j(`/api/alerts?${q({ tenant })}`),
   run: (body, configs) => j('/api/run', postH(body, configs)),
   ask: (body, configs) => j('/api/ask', postH(body, configs)),
+  dbTest: (conn) => j('/api/db/test', { method: 'POST', headers: byoHeader(conn) }),
   evidenceBundle: (tenant, claims) => j('/api/evidence-bundle', post({ tenant, claims })),
   audit: (tenant, claims, configs) => j('/api/audit', postH({ tenant, claims }, configs)),
   llmProviders: () => j('/api/llm/providers'),

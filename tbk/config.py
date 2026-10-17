@@ -24,6 +24,7 @@ class Settings:
     falkor_host: str = field(default_factory=lambda: os.getenv("FALKORDB_HOST", "localhost"))
     falkor_port: int = field(default_factory=lambda: int(os.getenv("FALKORDB_PORT", "6390")))
     falkor_password: str | None = field(default_factory=lambda: os.getenv("FALKORDB_PASSWORD") or None)
+    falkor_ssl: bool = field(default_factory=lambda: os.getenv("FALKORDB_SSL", "") == "1")
     tenants: list[str] = field(default_factory=_tenants)
     embed_dim: int = 256
 

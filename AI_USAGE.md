@@ -7,9 +7,10 @@ in a single working session at the participant's direction: the synthetic-compan
 memory/task layers, agents, evaluation harness, API, MCP server, React console, tests and documentation.
 
 **Verification performed**
-- 75 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
+- 105 automated tests (verifier adversarial cases, 5/5 root-cause accuracy on planted alerts, handoff and atomic-claim
   behaviour, tenant isolation, MCP client round-trip, LLM paths with a scripted fake client).
 - Evaluation ground truth is computed from the generator's model, independently of FalkorDB.
+- A request-routing race (analysis sent before the user's database connection was registered, so it went to the shared server) was found by checking *which database actually received the graph*, and fixed.
 - Real-repo benchmark on 6 public repositories (110 auto-generated questions, ground truth independent of the database).
 - Bugs found by running it rather than by reading it: look-alike git author names merging into one person (fixed with email-based identity), path enumeration on cyclic graphs (replaced by level-wise BFS), the benchmark exposed FalkorDB's queue limit (added admission
   control and retries) and a concurrency race that made exact-count claims go stale (made counter claims monotone).
